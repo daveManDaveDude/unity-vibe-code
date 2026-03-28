@@ -203,9 +203,9 @@ namespace VibeCode.Platformer
 
             float targetVelocityX = moveInput.x * moveSpeed;
             float acceleration = IsGrounded ? groundAcceleration : airAcceleration;
-            Vector2 velocity = body.velocity;
+            Vector2 velocity = body.linearVelocity;
             velocity.x = Mathf.MoveTowards(velocity.x, targetVelocityX, acceleration * deltaTime);
-            body.velocity = velocity;
+            body.linearVelocity = velocity;
 
             if (spriteRenderer != null && Mathf.Abs(moveInput.x) > 0.01f)
             {
@@ -227,9 +227,9 @@ namespace VibeCode.Platformer
                 return;
             }
 
-            Vector2 velocity = body.velocity;
+            Vector2 velocity = body.linearVelocity;
             velocity.y = jumpVelocity;
-            body.velocity = velocity;
+            body.linearVelocity = velocity;
 
             IsGrounded = false;
             lastGroundedTime = float.NegativeInfinity;
@@ -243,7 +243,7 @@ namespace VibeCode.Platformer
                 return;
             }
 
-            Vector2 velocity = body.velocity;
+            Vector2 velocity = body.linearVelocity;
             bool jumpHeld = jumpAction != null && jumpAction.IsPressed();
             float gravityMultiplier = 1f;
 
@@ -261,7 +261,7 @@ namespace VibeCode.Platformer
             if (velocity.y < -maxFallSpeed)
             {
                 velocity.y = -maxFallSpeed;
-                body.velocity = velocity;
+                body.linearVelocity = velocity;
             }
         }
 
