@@ -134,6 +134,8 @@ public static class StarterSceneBuilder
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(platform);
         renderer.sprite = sprite;
         renderer.color = color;
+        renderer.drawMode = SpriteDrawMode.Simple;
+        renderer.size = Vector2.one;
 
         BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(platform);
         collider.size = Vector2.one;
@@ -143,13 +145,15 @@ public static class StarterSceneBuilder
     private static GameObject CreateOrUpdatePlayer(Sprite sprite, InputActionAsset inputActions)
     {
         GameObject player = FindOrCreateRoot("Player");
-        player.transform.position = new Vector3(-6f, -1.05f, 0f);
-        player.transform.localScale = new Vector3(0.9f, 1.8f, 1f);
+        player.transform.position = new Vector3(-6f, -1.1f, 0f);
+        player.transform.localScale = Vector3.one;
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(player);
         renderer.sprite = sprite;
         renderer.color = new Color(0.93f, 0.53f, 0.38f);
         renderer.sortingOrder = 5;
+        renderer.drawMode = SpriteDrawMode.Sliced;
+        renderer.size = new Vector2(0.9f, 1.8f);
 
         Rigidbody2D body = GetOrAddComponent<Rigidbody2D>(player);
         body.gravityScale = 4f;
@@ -179,7 +183,7 @@ public static class StarterSceneBuilder
             groundCheck.SetParent(parent, false);
         }
 
-        groundCheck.localPosition = new Vector3(0f, -0.95f, 0f);
+        groundCheck.localPosition = new Vector3(0f, -0.96f, 0f);
         return groundCheck;
     }
 
