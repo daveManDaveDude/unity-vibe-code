@@ -41,6 +41,8 @@ GeneratedCSProjectFiles/
 *.apk
 *.aab
 *.unitypackage
+artifacts/
+CodeCoverage/
 
 # OS clutter
 .DS_Store

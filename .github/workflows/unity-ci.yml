@@ -1,0 +1,227 @@
+name: Unity CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_PROJECT_PATH: .
+  UNITY_VERSION: auto
+
+jobs:
+  editmode-tests:
+    name: EditMode Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify Unity secrets
+        id: unity-secrets
+        shell: bash
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || { [ -z "$UNITY_LICENSE" ] && [ -z "$UNITY_SERIAL" ]; }; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Unity CI skipped"
+              echo
+              echo "Configure these repository secrets first:"
+              echo "- UNITY_EMAIL"
+              echo "- UNITY_PASSWORD"
+              echo "- UNITY_LICENSE (personal) or UNITY_SERIAL (professional)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Library
+        if: steps.unity-secrets.outputs.configured == 'true'
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-editmode-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/**', 'Assets/**/*.cs', 'Assets/**/*.asmdef', 'Assets/**/*.unity', 'Assets/**/*.inputactions') }}
+          restore-keys: |
+            Library-${{ runner.os }}-editmode-
+            Library-${{ runner.os }}-
+
+      - name: Run EditMode tests
+        if: steps.unity-secrets.outputs.configured == 'true'
+        id: editmode
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: EditMode
+          artifactsPath: artifacts/editmode
+
+      - name: Upload EditMode artifacts
+        if: steps.unity-secrets.outputs.configured == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editmode-artifacts
+          path: artifacts/editmode
+
+  playmode-tests:
+    name: PlayMode Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify Unity secrets
+        id: unity-secrets
+        shell: bash
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || { [ -z "$UNITY_LICENSE" ] && [ -z "$UNITY_SERIAL" ]; }; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Unity CI skipped"
+              echo
+              echo "Configure these repository secrets first:"
+              echo "- UNITY_EMAIL"
+              echo "- UNITY_PASSWORD"
+              echo "- UNITY_LICENSE (personal) or UNITY_SERIAL (professional)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Library
+        if: steps.unity-secrets.outputs.configured == 'true'
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-playmode-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/**', 'Assets/**/*.cs', 'Assets/**/*.asmdef', 'Assets/**/*.unity', 'Assets/**/*.inputactions') }}
+          restore-keys: |
+            Library-${{ runner.os }}-playmode-
+            Library-${{ runner.os }}-
+
+      - name: Run PlayMode tests
+        if: steps.unity-secrets.outputs.configured == 'true'
+        id: playmode
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: PlayMode
+          artifactsPath: artifacts/playmode
+
+      - name: Upload PlayMode artifacts
+        if: steps.unity-secrets.outputs.configured == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playmode-artifacts
+          path: artifacts/playmode
+
+  build-windows:
+    name: Build Windows
+    if: github.event_name != 'pull_request'
+    needs:
+      - editmode-tests
+      - playmode-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify Unity secrets
+        id: unity-secrets
+        shell: bash
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || { [ -z "$UNITY_LICENSE" ] && [ -z "$UNITY_SERIAL" ]; }; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Unity build skipped"
+              echo
+              echo "Configure these repository secrets first:"
+              echo "- UNITY_EMAIL"
+              echo "- UNITY_PASSWORD"
+              echo "- UNITY_LICENSE (personal) or UNITY_SERIAL (professional)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Library
+        if: steps.unity-secrets.outputs.configured == 'true'
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-build-win64-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/**', 'Assets/**/*.cs', 'Assets/**/*.asmdef', 'Assets/**/*.unity', 'Assets/**/*.inputactions') }}
+          restore-keys: |
+            Library-${{ runner.os }}-build-win64-
+            Library-${{ runner.os }}-
+
+      - name: Build Windows player
+        if: steps.unity-secrets.outputs.configured == 'true'
+        id: build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: StandaloneWindows64
+          buildMethod: VibeCode.Build.BuildScripts.BuildWindows64
+          customParameters: -customBuildPath build/StandaloneWindows64 -customBuildName unity-vibe-code.exe
+          versioning: None
+
+      - name: Upload Windows build
+        if: steps.unity-secrets.outputs.configured == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: build/StandaloneWindows64
