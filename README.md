@@ -77,8 +77,41 @@ Then you can run:
 - `./scripts/test_playmode.sh`
 - `./scripts/build_osx.sh`
 - `./scripts/build_win64.sh`
+- `./scripts/run_osx.sh`
 
 Local logs and test results are written under `artifacts/`.
+
+### Verified local status on this Mac
+
+These commands have already been verified locally with Unity `6000.4.0f1`:
+
+- `./scripts/test_editmode.sh`
+- `./scripts/test_playmode.sh`
+- `./scripts/build_osx.sh`
+
+The macOS build output is:
+
+- `Builds/StandaloneOSX/unity-vibe-code.app`
+
+To launch that macOS build from the shell:
+
+- `./scripts/run_osx.sh`
+
+If you want to run the built app directly without the helper script, the current executable path is:
+
+- `Builds/StandaloneOSX/unity-vibe-code.app/Contents/MacOS/Game`
+
+Windows `.exe` builds are wired up in the repo, but this Mac does not currently have the Unity Windows Build Support module installed, so `./scripts/build_win64.sh` is not locally verified yet.
+
+### Troubleshooting local batch runs
+
+If a local PlayMode batch run appears to hang before tests start, and the Unity log shows licensing messages such as `Unsupported protocol version '1.18.1'`, the usual fix is:
+
+1. Close any open Unity editor for this project.
+2. Stop the lingering `Unity.Licensing.Client` process.
+3. Rerun the script.
+
+That issue turned out to be a stale local licensing client, not a problem in the project itself.
 
 ### GitHub Actions setup
 

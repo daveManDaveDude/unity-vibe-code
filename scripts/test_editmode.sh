@@ -7,6 +7,8 @@ source "$SCRIPT_DIR/unity_common.sh"
 RESULTS_FILE="$(tests_dir)/editmode-results.xml"
 LOG_FILE="$(logs_dir)/editmode-tests.log"
 
+rm -f "$RESULTS_FILE" "$LOG_FILE"
+
 run_unity_editor \
   -batchmode \
   -accept-apiupdate \

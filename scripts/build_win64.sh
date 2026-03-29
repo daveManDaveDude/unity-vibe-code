@@ -9,6 +9,7 @@ BUILD_NAME="${2:-unity-vibe-code.exe}"
 LOG_FILE="$(logs_dir)/build-win64.log"
 
 mkdir -p "$BUILD_PATH"
+rm -f "$LOG_FILE"
 
 run_unity_editor \
   -batchmode \
