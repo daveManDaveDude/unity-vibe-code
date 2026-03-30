@@ -43,5 +43,13 @@ namespace VibeCode.Tests.EditMode
 
             Assert.That(mainSceneIsEnabled, Is.True, "Expected Main.unity to be enabled in Build Settings.");
         }
+
+        [Test]
+        public void DesktopWindowSizingUsesSeventyPercentOfScreenResolution()
+        {
+            Vector2Int target = DesktopWindowSizing.CalculateWindowSize(1920, 1080);
+
+            Assert.That(target, Is.EqualTo(new Vector2Int(1344, 756)));
+        }
     }
 }
