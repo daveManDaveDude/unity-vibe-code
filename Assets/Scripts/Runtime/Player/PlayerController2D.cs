@@ -56,6 +56,7 @@ namespace VibeCode.Platformer
         [SerializeField] private float landingDustMinSpeed = 7f;
         [SerializeField] private Color dustColor = new Color(1f, 0.93f, 0.78f, 0.9f);
 
+        private readonly Collider2D[] groundHits = new Collider2D[8];
         private InputAction moveAction;
         private InputAction jumpAction;
         private SpriteRenderer spriteRenderer;
@@ -252,14 +253,14 @@ namespace VibeCode.Platformer
 
             if (groundCheck != null)
             {
-                grounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayers) != null;
+                grounded = HasGroundContact(groundCheck.position, groundCheckRadius);
             }
             else if (bodyCollider != null)
             {
                 Bounds bounds = bodyCollider.bounds;
                 Vector2 boxCenter = new Vector2(bounds.center.x, bounds.min.y - (groundCheckRadius * 0.5f));
                 Vector2 boxSize = new Vector2(bounds.size.x * 0.85f, groundCheckRadius);
-                grounded = Physics2D.OverlapBox(boxCenter, boxSize, 0f, groundLayers) != null;
+                grounded = HasGroundContact(boxCenter, boxSize);
             }
             else
             {
@@ -272,6 +273,63 @@ namespace VibeCode.Platformer
             {
                 jumpsUsed = 0;
             }
+        }
+
+        private bool HasGroundContact(Vector2 center, float radius)
+        {
+            ContactFilter2D filter = new ContactFilter2D();
+            filter.SetLayerMask(groundLayers);
+            filter.useTriggers = false;
+
+            int hitCount = Physics2D.OverlapCircle(center, radius, filter, groundHits);
+            return ContainsValidGroundHit(hitCount);
+        }
+
+        private bool HasGroundContact(Vector2 center, Vector2 size)
+        {
+            ContactFilter2D filter = new ContactFilter2D();
+            filter.SetLayerMask(groundLayers);
+            filter.useTriggers = false;
+
+            int hitCount = Physics2D.OverlapBox(center, size, 0f, filter, groundHits);
+            return ContainsValidGroundHit(hitCount);
+        }
+
+        private bool ContainsValidGroundHit(int hitCount)
+        {
+            for (int index = 0; index < hitCount; index++)
+            {
+                Collider2D hit = groundHits[index];
+                groundHits[index] = null;
+
+                if (!IsSelfCollider(hit))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsSelfCollider(Collider2D hit)
+        {
+            if (hit == null)
+            {
+                return true;
+            }
+
+            if (hit == bodyCollider)
+            {
+                return true;
+            }
+
+            if (body != null && hit.attachedRigidbody == body)
+            {
+                return true;
+            }
+
+            Transform hitTransform = hit.transform;
+            return hitTransform == transform || hitTransform.IsChildOf(transform);
         }
 
         private void ApplyHorizontalMovement(float deltaTime)

@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -41,6 +42,77 @@ namespace VibeCode.Tests.EditMode
             }
             finally
             {
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
+        public void GroundCheckIgnoresPlayerOwnCollider()
+        {
+            var player = new GameObject("Player Under Test");
+
+            try
+            {
+                player.layer = 0;
+
+                Rigidbody2D body = player.AddComponent<Rigidbody2D>();
+                CapsuleCollider2D collider = player.AddComponent<CapsuleCollider2D>();
+                collider.direction = CapsuleDirection2D.Vertical;
+                collider.size = new Vector2(0.225f, 0.45f);
+
+                var groundCheck = new GameObject("GroundCheck").transform;
+                groundCheck.SetParent(player.transform, false);
+                groundCheck.localPosition = new Vector3(0f, -0.24f, 0f);
+
+                PlayerController2D controller = player.AddComponent<PlayerController2D>();
+                ConfigureControllerForGroundCheck(controller, body, collider, groundCheck);
+
+                InvokeUpdateGroundedState(controller);
+
+                Assert.That(controller.IsGrounded, Is.False,
+                    "Expected the player ground check to ignore the player's own collider while airborne.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
+        public void GroundCheckStillDetectsActualGround()
+        {
+            var player = new GameObject("Player Under Test");
+            var ground = new GameObject("Ground Under Test");
+
+            try
+            {
+                player.layer = 0;
+                ground.layer = 0;
+
+                Rigidbody2D body = player.AddComponent<Rigidbody2D>();
+                CapsuleCollider2D collider = player.AddComponent<CapsuleCollider2D>();
+                collider.direction = CapsuleDirection2D.Vertical;
+                collider.size = new Vector2(0.225f, 0.45f);
+
+                BoxCollider2D groundCollider = ground.AddComponent<BoxCollider2D>();
+                groundCollider.size = new Vector2(2f, 1f);
+                ground.transform.position = new Vector3(0f, -0.5f, 0f);
+
+                var groundCheck = new GameObject("GroundCheck").transform;
+                groundCheck.SetParent(player.transform, false);
+                groundCheck.localPosition = new Vector3(0f, -0.24f, 0f);
+
+                PlayerController2D controller = player.AddComponent<PlayerController2D>();
+                ConfigureControllerForGroundCheck(controller, body, collider, groundCheck);
+
+                InvokeUpdateGroundedState(controller);
+
+                Assert.That(controller.IsGrounded, Is.True,
+                    "Expected the player ground check to keep detecting real ground underfoot.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(ground);
                 Object.DestroyImmediate(player);
             }
         }
@@ -116,6 +188,30 @@ namespace VibeCode.Tests.EditMode
                 Object.DestroyImmediate(playerObject);
                 Object.DestroyImmediate(managerObject);
             }
+        }
+
+        private static void InvokeUpdateGroundedState(PlayerController2D controller)
+        {
+            MethodInfo updateGroundedState = typeof(PlayerController2D).GetMethod(
+                "UpdateGroundedState",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.That(updateGroundedState, Is.Not.Null, "Expected to find the private UpdateGroundedState method.");
+            updateGroundedState.Invoke(controller, null);
+        }
+
+        private static void ConfigureControllerForGroundCheck(
+            PlayerController2D controller,
+            Rigidbody2D body,
+            CapsuleCollider2D collider,
+            Transform groundCheck)
+        {
+            var serializedObject = new SerializedObject(controller);
+            serializedObject.FindProperty("body").objectReferenceValue = body;
+            serializedObject.FindProperty("bodyCollider").objectReferenceValue = collider;
+            serializedObject.FindProperty("groundCheck").objectReferenceValue = groundCheck;
+            serializedObject.FindProperty("groundLayers").intValue = 1 << 0;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

@@ -24,12 +24,51 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a reusable checkpoint.");
             Assert.That(Object.FindAnyObjectByType<ExitPortal>(), Is.Not.Null,
                 "Expected Main scene to contain an exit portal.");
+            Assert.That(Object.FindAnyObjectByType<FloorButton2D>(), Is.Not.Null,
+                "Expected Main scene to contain a floor button puzzle switch.");
+            Assert.That(Object.FindAnyObjectByType<LinkedGate2D>(), Is.Not.Null,
+                "Expected Main scene to contain a linked gate puzzle object.");
             Assert.That(Object.FindAnyObjectByType<KillZone2D>(), Is.Not.Null,
                 "Expected Main scene to contain a kill zone.");
             Assert.That(Object.FindAnyObjectByType<PatrollingEnemy2D>(), Is.Not.Null,
                 "Expected Main scene to contain at least one patrolling enemy.");
             Assert.That(Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None).Length, Is.GreaterThanOrEqualTo(3),
                 "Expected Main scene to contain several collectible energy seeds.");
+        }
+
+        [UnityTest]
+        public IEnumerator FloorButtonOpensLinkedGate()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            FloorButton2D floorButton = Object.FindAnyObjectByType<FloorButton2D>();
+            LinkedGate2D linkedGate = Object.FindAnyObjectByType<LinkedGate2D>();
+            Collider2D gateCollider = linkedGate != null ? linkedGate.GetComponent<Collider2D>() : null;
+            Rigidbody2D playerBody = player != null ? player.GetComponent<Rigidbody2D>() : null;
+
+            Assert.That(player, Is.Not.Null);
+            Assert.That(playerBody, Is.Not.Null);
+            Assert.That(floorButton, Is.Not.Null);
+            Assert.That(linkedGate, Is.Not.Null);
+            Assert.That(floorButton.LinkedGate, Is.SameAs(linkedGate));
+            Assert.That(gateCollider, Is.Not.Null);
+            Assert.That(floorButton.IsActivated, Is.False, "Expected the switch to begin unpressed.");
+            Assert.That(linkedGate.IsOpen, Is.False, "Expected the gate to begin locked.");
+            Assert.That(gateCollider.enabled, Is.True, "Expected the locked gate to block the player.");
+
+            playerBody.linearVelocity = Vector2.zero;
+            player.transform.position = floorButton.transform.position + new Vector3(0f, 0.4f, 0f);
+
+            for (int index = 0; index < 5 && !floorButton.IsActivated; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(floorButton.IsActivated, Is.True, "Expected touching the button to latch it on.");
+            Assert.That(linkedGate.IsOpen, Is.True, "Expected the linked gate to open once the button is pressed.");
+            Assert.That(gateCollider.enabled, Is.False, "Expected the opened gate to stop blocking the player.");
         }
 
         [UnityTest]

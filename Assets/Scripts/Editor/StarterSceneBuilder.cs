@@ -129,7 +129,8 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateLevel(Sprite sprite)
     {
         GameObject levelRoot = FindOrCreateRoot("Level");
-        CreateOrUpdatePlatform(levelRoot.transform, "Ground", sprite, new Vector2(7f, -2.75f), new Vector2(40f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Ground", sprite, new Vector2(-7f, -2.75f), new Vector2(22f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Ground Far Side", sprite, new Vector2(19f, -2.75f), new Vector2(16f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
         CreateOrUpdatePlatform(levelRoot.transform, "Platform A", sprite, new Vector2(-10.4f, -1.95f), new Vector2(2.6f, PlatformSize.y), new Color(0.24f, 0.43f, 0.66f));
         CreateOrUpdatePlatform(levelRoot.transform, "Platform B", sprite, new Vector2(-6.6f, -1.2f), new Vector2(1.9f, PlatformSize.y), new Color(0.31f, 0.49f, 0.71f));
         CreateOrUpdatePlatform(levelRoot.transform, "Platform C", sprite, new Vector2(-2.2f, -0.45f), new Vector2(2.9f, PlatformSize.y), new Color(0.27f, 0.45f, 0.65f));
@@ -138,6 +139,8 @@ public static class StarterSceneBuilder
         CreateOrUpdatePlatform(levelRoot.transform, "Platform F", sprite, new Vector2(11.05f, 0.75f), new Vector2(1.9f, PlatformSize.y), new Color(0.3f, 0.44f, 0.67f));
         CreateOrUpdatePlatform(levelRoot.transform, "Platform G", sprite, new Vector2(15.85f, 0.15f), new Vector2(2.8f, PlatformSize.y), new Color(0.29f, 0.47f, 0.68f));
         CreateOrUpdatePlatform(levelRoot.transform, "Platform H", sprite, new Vector2(20.7f, 1.1f), new Vector2(2f, PlatformSize.y), new Color(0.34f, 0.52f, 0.72f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Gate Puzzle Roof", sprite, new Vector2(24.3f, -0.65f), new Vector2(4.3f, PlatformSize.y), new Color(0.17f, 0.24f, 0.36f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Gate Puzzle Wall", sprite, new Vector2(26.35f, -1.55f), new Vector2(0.35f, 2.2f), new Color(0.17f, 0.24f, 0.36f));
     }
 
     private static void CreateOrUpdateGameplay(GameObject player, Sprite sprite, GameObject enemyPrefab)
@@ -156,6 +159,7 @@ public static class StarterSceneBuilder
         CreateOrUpdateStartMarker(sliceObjectsRoot.transform, sprite);
         CreateOrUpdateCheckpoint(sliceObjectsRoot.transform, sprite, gameManager);
         CreateOrUpdateExitPortal(sliceObjectsRoot.transform, sprite, gameManager);
+        CreateOrUpdateGatePuzzle(sliceObjectsRoot.transform, sprite);
         CreateOrUpdateSeeds(sliceObjectsRoot.transform, sprite, gameManager);
         CreateOrUpdateEnemies(sliceObjectsRoot.transform, sprite, enemyPrefab);
         CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
@@ -300,7 +304,7 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateExitPortal(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
     {
         GameObject exitPortal = FindOrCreateChild(parent, "Exit Portal");
-        exitPortal.transform.position = new Vector3(24.5f, -2.2625f, 0f);
+        exitPortal.transform.position = new Vector3(24.15f, -2.2625f, 0f);
         exitPortal.transform.localScale = new Vector3(0.3f, 0.6f, 1f);
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(exitPortal);
@@ -316,6 +320,47 @@ public static class StarterSceneBuilder
 
         ExitPortal portal = GetOrAddComponent<ExitPortal>(exitPortal);
         ConfigurePortal(portal, gameManager, collider, renderer);
+    }
+
+    private static void CreateOrUpdateGatePuzzle(Transform parent, Sprite sprite)
+    {
+        GameObject puzzleRoot = FindOrCreateChild(parent, "Gate Puzzle");
+
+        GameObject gate = FindOrCreateChild(puzzleRoot.transform, "Exit Gate");
+        gate.transform.position = new Vector3(22.2f, -1.6625f, 0f);
+        gate.transform.localScale = new Vector3(0.35f, 1.8f, 1f);
+
+        SpriteRenderer gateRenderer = GetOrAddComponent<SpriteRenderer>(gate);
+        gateRenderer.sprite = sprite;
+        gateRenderer.color = new Color(0.74f, 0.28f, 0.24f, 1f);
+        gateRenderer.sortingOrder = 3;
+        gateRenderer.drawMode = SpriteDrawMode.Simple;
+
+        BoxCollider2D gateCollider = GetOrAddComponent<BoxCollider2D>(gate);
+        gateCollider.size = Vector2.one;
+        gateCollider.offset = Vector2.zero;
+        gateCollider.isTrigger = false;
+
+        LinkedGate2D linkedGate = GetOrAddComponent<LinkedGate2D>(gate);
+        ConfigureGate(linkedGate, gateCollider, gateRenderer);
+
+        GameObject button = FindOrCreateChild(puzzleRoot.transform, "Floor Button");
+        button.transform.position = new Vector3(20.7f, 1.29375f, 0f);
+        button.transform.localScale = new Vector3(0.45f, 0.14f, 1f);
+
+        SpriteRenderer buttonRenderer = GetOrAddComponent<SpriteRenderer>(button);
+        buttonRenderer.sprite = sprite;
+        buttonRenderer.color = new Color(0.95f, 0.83f, 0.3f, 1f);
+        buttonRenderer.sortingOrder = 4;
+        buttonRenderer.drawMode = SpriteDrawMode.Simple;
+
+        BoxCollider2D buttonCollider = GetOrAddComponent<BoxCollider2D>(button);
+        buttonCollider.size = new Vector2(1.25f, 5f);
+        buttonCollider.offset = Vector2.zero;
+        buttonCollider.isTrigger = true;
+
+        FloorButton2D floorButton = GetOrAddComponent<FloorButton2D>(button);
+        ConfigureFloorButton(floorButton, linkedGate, buttonCollider, buttonRenderer);
     }
 
     private static void CreateOrUpdateSeeds(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
@@ -499,6 +544,24 @@ public static class StarterSceneBuilder
         serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
         serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
         serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureGate(LinkedGate2D gate, Collider2D blockingCollider, SpriteRenderer renderer)
+    {
+        SerializedObject serializedObject = new SerializedObject(gate);
+        serializedObject.FindProperty("blockingCollider").objectReferenceValue = blockingCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureFloorButton(FloorButton2D floorButton, LinkedGate2D linkedGate, Collider2D triggerCollider, SpriteRenderer renderer)
+    {
+        SerializedObject serializedObject = new SerializedObject(floorButton);
+        serializedObject.FindProperty("linkedGate").objectReferenceValue = linkedGate;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
+        serializedObject.FindProperty("pressedHeightScale").floatValue = 0.55f;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
