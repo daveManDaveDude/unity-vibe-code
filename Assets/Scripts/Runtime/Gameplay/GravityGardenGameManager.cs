@@ -18,6 +18,7 @@ namespace VibeCode.Platformer
         private float statusMessageExpiresAt;
         private string currentStatusMessage = string.Empty;
         private readonly HashSet<EnergySeedCollectible> collectedSeeds = new HashSet<EnergySeedCollectible>();
+        private Checkpoint2D activeCheckpoint;
 
         public event Action StateChanged;
 
@@ -26,6 +27,7 @@ namespace VibeCode.Platformer
         public int MinimumSeedsToExit => minimumSeedsToExit;
         public bool CanUseExit => CollectedSeeds >= minimumSeedsToExit;
         public bool HasWon { get; private set; }
+        public Checkpoint2D ActiveCheckpoint => activeCheckpoint;
         public int SeedsRemainingForExit => Mathf.Max(0, minimumSeedsToExit - CollectedSeeds);
         public string CurrentStatusMessage => Time.unscaledTime <= statusMessageExpiresAt ? currentStatusMessage : string.Empty;
 
@@ -45,6 +47,13 @@ namespace VibeCode.Platformer
         {
             minimumSeedsToExit = Mathf.Max(1, minimumSeedsToExit);
             statusMessageDuration = Mathf.Max(0f, statusMessageDuration);
+        }
+
+        public void Configure(PlayerController2D targetPlayer, Transform targetRespawnPoint, int requiredSeedsToExit)
+        {
+            player = targetPlayer;
+            respawnPoint = targetRespawnPoint;
+            minimumSeedsToExit = Mathf.Max(1, requiredSeedsToExit);
         }
 
         public bool TryCollectSeed(EnergySeedCollectible seed)
@@ -79,7 +88,29 @@ namespace VibeCode.Platformer
             return true;
         }
 
-        public void RespawnPlayer(PlayerController2D targetPlayer = null)
+        public bool TryActivateCheckpoint(Checkpoint2D checkpoint, PlayerController2D targetPlayer = null)
+        {
+            if (checkpoint == null || activeCheckpoint == checkpoint)
+            {
+                return false;
+            }
+
+            activeCheckpoint = checkpoint;
+            if (targetPlayer != null)
+            {
+                player = targetPlayer;
+            }
+
+            ShowStatusMessage("Checkpoint reached.");
+            return true;
+        }
+
+        public void DefeatPlayer(PlayerController2D targetPlayer = null, string statusMessageOverride = null)
+        {
+            RespawnPlayer(targetPlayer, statusMessageOverride);
+        }
+
+        public void RespawnPlayer(PlayerController2D targetPlayer = null, string statusMessageOverride = null)
         {
             PlayerController2D resolvedPlayer = targetPlayer != null ? targetPlayer : player;
             if (resolvedPlayer == null)
@@ -87,7 +118,8 @@ namespace VibeCode.Platformer
                 resolvedPlayer = FindAnyObjectByType<PlayerController2D>();
             }
 
-            if (resolvedPlayer == null || respawnPoint == null)
+            Transform activeRespawnPoint = activeCheckpoint != null ? activeCheckpoint.RespawnPoint : respawnPoint;
+            if (resolvedPlayer == null || activeRespawnPoint == null)
             {
                 return;
             }
@@ -101,8 +133,14 @@ namespace VibeCode.Platformer
                 body.angularVelocity = 0f;
             }
 
-            resolvedPlayer.transform.position = respawnPoint.position;
-            ShowStatusMessage("You fell out of the garden. Back to the start.");
+            resolvedPlayer.transform.position = activeRespawnPoint.position;
+            resolvedPlayer.ResetMotionState();
+
+            string defaultMessage = activeCheckpoint != null
+                ? "You fell out of the garden. Back to the last checkpoint."
+                : "You fell out of the garden. Back to the start.";
+
+            ShowStatusMessage(string.IsNullOrWhiteSpace(statusMessageOverride) ? defaultMessage : statusMessageOverride);
         }
 
         private void ShowStatusMessage(string message)

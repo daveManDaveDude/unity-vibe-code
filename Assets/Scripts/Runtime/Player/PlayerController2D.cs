@@ -8,6 +8,13 @@ namespace VibeCode.Platformer
     [RequireComponent(typeof(CapsuleCollider2D))]
     public class PlayerController2D : MonoBehaviour
     {
+        private enum PlayerVisualState
+        {
+            Idle,
+            Run,
+            Jump
+        }
+
         [Header("References")]
         [SerializeField] private Rigidbody2D body;
         [SerializeField] private CapsuleCollider2D bodyCollider;
@@ -18,31 +25,52 @@ namespace VibeCode.Platformer
         [SerializeField] private string jumpActionName = "Jump";
 
         [Header("Movement")]
-        [SerializeField] private float moveSpeed = 8f;
-        [SerializeField] private float groundAcceleration = 60f;
-        [SerializeField] private float airAcceleration = 35f;
-        [SerializeField] private float jumpVelocity = 14f;
+        [SerializeField] private float moveSpeed = 5.5f;
+        [SerializeField] private float groundAcceleration = 45f;
+        [SerializeField] private float groundDeceleration = 60f;
+        [SerializeField] private float airAcceleration = 26.25f;
+        [SerializeField] private float airDeceleration = 30f;
+        [SerializeField] private float jumpVelocity = 9.2f;
 
         [Header("Jump Feel")]
-        [SerializeField] private float coyoteTime = 0.12f;
-        [SerializeField] private float jumpBufferTime = 0.15f;
-        [SerializeField] private float fallGravityMultiplier = 2.8f;
         [SerializeField] private float lowJumpGravityMultiplier = 2f;
         [SerializeField] private float maxFallSpeed = 20f;
 
         [Header("Ground Check")]
         [SerializeField] private LayerMask groundLayers = 1;
-        [SerializeField] private float groundCheckRadius = 0.12f;
+        [SerializeField] private float groundCheckRadius = 0.03f;
+
+        [Header("Placeholder Visuals")]
+        [SerializeField] private Color idleColor = new Color(0.93f, 0.53f, 0.38f, 1f);
+        [SerializeField] private Color runColor = new Color(0.99f, 0.62f, 0.4f, 1f);
+        [SerializeField] private Color jumpColor = new Color(1f, 0.83f, 0.52f, 1f);
+        [SerializeField] private Vector2 idleVisualSize = new Vector2(0.225f, 0.45f);
+        [SerializeField] private Vector2 runVisualSize = new Vector2(0.245f, 0.435f);
+        [SerializeField] private Vector2 jumpVisualSize = new Vector2(0.21f, 0.4875f);
+        [SerializeField] private float runBounceAmount = 0.05f;
+        [SerializeField] private float visualLerpSpeed = 14f;
+
+        [Header("Placeholder Effects")]
+        [SerializeField] private bool spawnPlaceholderDust = true;
+        [SerializeField] private float landingDustMinSpeed = 7f;
+        [SerializeField] private Color dustColor = new Color(1f, 0.93f, 0.78f, 0.9f);
 
         private InputAction moveAction;
         private InputAction jumpAction;
         private SpriteRenderer spriteRenderer;
         private Vector2 moveInput;
+        private bool jumpQueued;
         private float defaultGravityScale;
-        private float lastGroundedTime = float.NegativeInfinity;
-        private float lastJumpPressedTime = float.NegativeInfinity;
+        private float lastVerticalVelocity;
+        private float facingDirection = 1f;
+        private bool wasGroundedLastStep;
+        private PlayerVisualState currentVisualState;
 
         public bool IsGrounded { get; private set; }
+        public float VerticalVelocity => body != null ? body.linearVelocity.y : 0f;
+        public Bounds CollisionBounds => bodyCollider != null
+            ? bodyCollider.bounds
+            : new Bounds(transform.position, Vector3.zero);
 
         private void Reset()
         {
@@ -60,7 +88,7 @@ namespace VibeCode.Platformer
             if (bodyCollider != null)
             {
                 bodyCollider.direction = CapsuleDirection2D.Vertical;
-                bodyCollider.size = new Vector2(0.9f, 1.8f);
+                bodyCollider.size = new Vector2(0.225f, 0.45f);
             }
         }
 
@@ -87,6 +115,7 @@ namespace VibeCode.Platformer
 
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
             defaultGravityScale = body != null ? body.gravityScale : 1f;
+            EnsureVisualSetup();
             BindActions();
         }
 
@@ -116,16 +145,24 @@ namespace VibeCode.Platformer
 
             if (jumpAction != null && jumpAction.WasPressedThisFrame())
             {
-                lastJumpPressedTime = Time.time;
+                jumpQueued = true;
             }
         }
 
         private void FixedUpdate()
         {
             UpdateGroundedState();
+            HandleGroundTransitions();
             ApplyHorizontalMovement(Time.fixedDeltaTime);
             TryJump();
             ApplyGravityTuning();
+            UpdateVisuals(Time.fixedDeltaTime);
+
+            wasGroundedLastStep = IsGrounded;
+            if (body != null)
+            {
+                lastVerticalVelocity = body.linearVelocity.y;
+            }
         }
 
         public void Configure(Rigidbody2D targetBody, CapsuleCollider2D targetCollider, Transform targetGroundCheck, InputActionAsset actions, LayerMask groundMask)
@@ -137,7 +174,40 @@ namespace VibeCode.Platformer
             groundLayers = groundMask;
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
             defaultGravityScale = body != null ? body.gravityScale : defaultGravityScale;
+            EnsureVisualSetup();
             BindActions();
+        }
+
+        public void ResetMotionState()
+        {
+            moveInput = Vector2.zero;
+            jumpQueued = false;
+            IsGrounded = false;
+            lastVerticalVelocity = 0f;
+            wasGroundedLastStep = false;
+
+            if (body != null)
+            {
+                body.gravityScale = defaultGravityScale;
+            }
+
+            UpdateGroundedState();
+            UpdateVisuals(0f, true);
+        }
+
+        public void Bounce(float upwardVelocity)
+        {
+            if (body == null)
+            {
+                return;
+            }
+
+            Vector2 velocity = body.linearVelocity;
+            velocity.y = Mathf.Max(velocity.y, upwardVelocity);
+            body.linearVelocity = velocity;
+            body.gravityScale = defaultGravityScale;
+            IsGrounded = false;
+            jumpQueued = false;
         }
 
         private void BindActions()
@@ -188,10 +258,6 @@ namespace VibeCode.Platformer
             }
 
             IsGrounded = grounded;
-            if (grounded)
-            {
-                lastGroundedTime = Time.time;
-            }
         }
 
         private void ApplyHorizontalMovement(float deltaTime)
@@ -202,14 +268,25 @@ namespace VibeCode.Platformer
             }
 
             float targetVelocityX = moveInput.x * moveSpeed;
-            float acceleration = IsGrounded ? groundAcceleration : airAcceleration;
             Vector2 velocity = body.linearVelocity;
-            velocity.x = Mathf.MoveTowards(velocity.x, targetVelocityX, acceleration * deltaTime);
+            float acceleration = IsGrounded ? groundAcceleration : airAcceleration;
+            float deceleration = IsGrounded ? groundDeceleration : airDeceleration;
+            bool isStopping = Mathf.Abs(targetVelocityX) < 0.01f;
+            bool isReversing = Mathf.Abs(velocity.x) > 0.01f
+                && Mathf.Abs(targetVelocityX) > 0.01f
+                && Mathf.Sign(targetVelocityX) != Mathf.Sign(velocity.x);
+            float moveRate = (isStopping || isReversing ? deceleration : acceleration) * deltaTime;
+            velocity.x = Mathf.MoveTowards(velocity.x, targetVelocityX, moveRate);
             body.linearVelocity = velocity;
 
-            if (spriteRenderer != null && Mathf.Abs(moveInput.x) > 0.01f)
+            if (Mathf.Abs(moveInput.x) > 0.01f)
             {
-                spriteRenderer.flipX = moveInput.x < 0f;
+                facingDirection = moveInput.x < 0f ? -1f : 1f;
+            }
+
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.flipX = facingDirection < 0f;
             }
         }
 
@@ -220,9 +297,7 @@ namespace VibeCode.Platformer
                 return;
             }
 
-            bool hasBufferedJump = Time.time - lastJumpPressedTime <= jumpBufferTime;
-            bool canUseGroundedJump = IsGrounded || Time.time - lastGroundedTime <= coyoteTime;
-            if (!hasBufferedJump || !canUseGroundedJump)
+            if (!jumpQueued || !IsGrounded)
             {
                 return;
             }
@@ -230,10 +305,10 @@ namespace VibeCode.Platformer
             Vector2 velocity = body.linearVelocity;
             velocity.y = jumpVelocity;
             body.linearVelocity = velocity;
+            SpawnDustBurst(0.7f, 0.35f, 0.22f);
 
             IsGrounded = false;
-            lastGroundedTime = float.NegativeInfinity;
-            lastJumpPressedTime = float.NegativeInfinity;
+            jumpQueued = false;
         }
 
         private void ApplyGravityTuning()
@@ -245,16 +320,7 @@ namespace VibeCode.Platformer
 
             Vector2 velocity = body.linearVelocity;
             bool jumpHeld = jumpAction != null && jumpAction.IsPressed();
-            float gravityMultiplier = 1f;
-
-            if (velocity.y < 0f)
-            {
-                gravityMultiplier = fallGravityMultiplier;
-            }
-            else if (velocity.y > 0f && !jumpHeld)
-            {
-                gravityMultiplier = lowJumpGravityMultiplier;
-            }
+            float gravityMultiplier = velocity.y > 0f && !jumpHeld ? lowJumpGravityMultiplier : 1f;
 
             body.gravityScale = defaultGravityScale * gravityMultiplier;
 
@@ -263,6 +329,123 @@ namespace VibeCode.Platformer
                 velocity.y = -maxFallSpeed;
                 body.linearVelocity = velocity;
             }
+        }
+
+        private void EnsureVisualSetup()
+        {
+            if (spriteRenderer == null)
+            {
+                return;
+            }
+
+            if (spriteRenderer.drawMode == SpriteDrawMode.Simple)
+            {
+                spriteRenderer.drawMode = SpriteDrawMode.Sliced;
+            }
+
+            spriteRenderer.color = idleColor;
+            spriteRenderer.size = idleVisualSize;
+            spriteRenderer.flipX = facingDirection < 0f;
+        }
+
+        private void HandleGroundTransitions()
+        {
+            if (!IsGrounded || wasGroundedLastStep)
+            {
+                return;
+            }
+
+            if (lastVerticalVelocity <= -landingDustMinSpeed)
+            {
+                SpawnDustBurst(1f, 0.15f, 0.28f);
+            }
+        }
+
+        private void UpdateVisuals(float deltaTime, bool snap = false)
+        {
+            if (spriteRenderer == null)
+            {
+                return;
+            }
+
+            currentVisualState = ResolveVisualState();
+
+            Color targetColor = idleColor;
+            Vector2 targetSize = idleVisualSize;
+
+            switch (currentVisualState)
+            {
+                case PlayerVisualState.Run:
+                    targetColor = runColor;
+                    targetSize = GetRunVisualSize();
+                    break;
+                case PlayerVisualState.Jump:
+                    targetColor = jumpColor;
+                    targetSize = jumpVisualSize;
+                    break;
+            }
+
+            if (snap || deltaTime <= 0f)
+            {
+                spriteRenderer.color = targetColor;
+                spriteRenderer.size = targetSize;
+                return;
+            }
+
+            float blend = 1f - Mathf.Exp(-visualLerpSpeed * deltaTime);
+            spriteRenderer.color = Color.Lerp(spriteRenderer.color, targetColor, blend);
+            spriteRenderer.size = Vector2.Lerp(spriteRenderer.size, targetSize, blend);
+        }
+
+        private PlayerVisualState ResolveVisualState()
+        {
+            if (!IsGrounded)
+            {
+                return PlayerVisualState.Jump;
+            }
+
+            return Mathf.Abs(body != null ? body.linearVelocity.x : moveInput.x) > 0.15f
+                ? PlayerVisualState.Run
+                : PlayerVisualState.Idle;
+        }
+
+        private Vector2 GetRunVisualSize()
+        {
+            float bounce = (Mathf.Sin(Time.time * 18f) * 0.5f) + 0.5f;
+            float width = Mathf.Lerp(runVisualSize.x - runBounceAmount, runVisualSize.x + runBounceAmount, bounce);
+            float height = Mathf.Lerp(runVisualSize.y + runBounceAmount, runVisualSize.y - runBounceAmount, bounce);
+            return new Vector2(width, height);
+        }
+
+        private void SpawnDustBurst(float widthScale, float upwardVelocity, float lifetime)
+        {
+            if (!spawnPlaceholderDust || spriteRenderer == null || spriteRenderer.sprite == null)
+            {
+                return;
+            }
+
+            Vector3 origin = groundCheck != null
+                ? groundCheck.position
+                : new Vector3(transform.position.x, bodyCollider != null ? bodyCollider.bounds.min.y : transform.position.y, transform.position.z);
+
+            SpawnDustParticle(origin + new Vector3(-0.12f * facingDirection, -0.03f, 0f), new Vector2(-0.7f * facingDirection, upwardVelocity), widthScale, lifetime);
+            SpawnDustParticle(origin + new Vector3(0.12f * facingDirection, -0.03f, 0f), new Vector2(0.7f * facingDirection, upwardVelocity * 1.1f), widthScale, lifetime);
+        }
+
+        private void SpawnDustParticle(Vector3 position, Vector2 velocity, float scaleMultiplier, float lifetime)
+        {
+            GameObject effectObject = new GameObject("Player Dust");
+            effectObject.transform.position = position;
+
+            PlaceholderBurstEffect effect = effectObject.AddComponent<PlaceholderBurstEffect>();
+            effect.Initialize(
+                spriteRenderer.sprite,
+                dustColor,
+                spriteRenderer.sortingOrder - 1,
+                Vector3.one * (0.12f * scaleMultiplier),
+                new Vector3(0.34f * scaleMultiplier, 0.2f * scaleMultiplier, 1f),
+                velocity,
+                lifetime);
         }
 
         private void OnDrawGizmosSelected()

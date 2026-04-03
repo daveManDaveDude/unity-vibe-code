@@ -40,9 +40,17 @@ The scene builder will refresh the current Gravity Garden playable slice with pl
 This first slice is a short one-screen platforming run:
 
 - start on the glowing garden patch at the left side of the level
+- touch the checkpoint marker as you move through the level to update your respawn spot
 - collect enough `energy seeds` to power the exit portal
-- avoid falling into the kill zone below the level or you will respawn at the start
+- avoid falling into the kill zone below the level or you will respawn at the start or your latest checkpoint
 - once the HUD says the portal is ready, reach the exit on the right to win the slice
+
+## Manual movement feel checklist
+
+- Hold jump for a full hop, then tap jump for a shorter hop. The difference should feel easy to control.
+- Run, let go, and reverse direction. The player should speed up smoothly but stop and turn without feeling slippery.
+- Watch the placeholder body states: idle on the ground, bouncy run while moving, and jump visuals while airborne.
+- Jump and land a few times, then fall into the kill zone after touching the checkpoint. You should see simple dust feedback and respawn at the checkpoint instead of the start.
 
 ## What should be committed
 

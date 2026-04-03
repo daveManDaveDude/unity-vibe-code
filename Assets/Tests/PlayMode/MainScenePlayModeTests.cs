@@ -20,10 +20,14 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a PlayerController2D instance.");
             Assert.That(Object.FindAnyObjectByType<GravityGardenGameManager>(), Is.Not.Null,
                 "Expected Main scene to contain a GravityGardenGameManager instance.");
+            Assert.That(Object.FindAnyObjectByType<Checkpoint2D>(), Is.Not.Null,
+                "Expected Main scene to contain a reusable checkpoint.");
             Assert.That(Object.FindAnyObjectByType<ExitPortal>(), Is.Not.Null,
                 "Expected Main scene to contain an exit portal.");
             Assert.That(Object.FindAnyObjectByType<KillZone2D>(), Is.Not.Null,
                 "Expected Main scene to contain a kill zone.");
+            Assert.That(Object.FindAnyObjectByType<PatrollingEnemy2D>(), Is.Not.Null,
+                "Expected Main scene to contain at least one patrolling enemy.");
             Assert.That(Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None).Length, Is.GreaterThanOrEqualTo(3),
                 "Expected Main scene to contain several collectible energy seeds.");
         }
@@ -36,17 +40,29 @@ namespace VibeCode.Tests.PlayMode
 
             GravityGardenGameManager gameManager = Object.FindAnyObjectByType<GravityGardenGameManager>();
             PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            Checkpoint2D checkpoint = Object.FindAnyObjectByType<Checkpoint2D>();
+            GameObject respawnObject = GameObject.Find("Respawn Point");
             EnergySeedCollectible[] seeds = Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None);
 
             Assert.That(gameManager, Is.Not.Null);
             Assert.That(player, Is.Not.Null);
+            Assert.That(checkpoint, Is.Not.Null);
+            Assert.That(respawnObject, Is.Not.Null);
             Assert.That(seeds.Length, Is.GreaterThanOrEqualTo(gameManager.MinimumSeedsToExit));
 
             player.transform.position = new Vector3(4f, -6f, 0f);
             gameManager.RespawnPlayer(player);
 
-            Assert.That(player.transform.position.x, Is.EqualTo(-6.5f).Within(0.01f));
-            Assert.That(player.transform.position.y, Is.EqualTo(-1.1f).Within(0.01f));
+            Assert.That(player.transform.position.x, Is.EqualTo(respawnObject.transform.position.x).Within(0.01f));
+            Assert.That(player.transform.position.y, Is.EqualTo(respawnObject.transform.position.y).Within(0.01f));
+
+            Assert.That(gameManager.TryActivateCheckpoint(checkpoint, player), Is.True);
+
+            player.transform.position = new Vector3(4f, -6f, 0f);
+            gameManager.RespawnPlayer(player);
+
+            Assert.That(player.transform.position.x, Is.EqualTo(checkpoint.transform.position.x).Within(0.01f));
+            Assert.That(player.transform.position.y, Is.EqualTo(checkpoint.transform.position.y).Within(0.01f));
 
             for (int index = 0; index < gameManager.MinimumSeedsToExit; index++)
             {
