@@ -279,7 +279,7 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateCheckpoint(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
     {
         GameObject checkpoint = FindOrCreateChild(parent, "Checkpoint 1");
-        checkpoint.transform.position = new Vector3(6.25f, PlayerGroundedY, 0f);
+        checkpoint.transform.position = new Vector3(2.1f, -0.5625f, 0f);
         checkpoint.transform.localScale = new Vector3(0.095f, 0.3875f, 1f);
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(checkpoint);

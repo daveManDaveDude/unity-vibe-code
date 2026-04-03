@@ -74,12 +74,27 @@ namespace VibeCode.Platformer
 
         private void OnCollisionEnter2D(Collision2D collision)
         {
+            HandlePlayerCollision(collision);
+        }
+
+        private void OnCollisionStay2D(Collision2D collision)
+        {
+            HandlePlayerCollision(collision);
+        }
+
+        private void HandlePlayerCollision(Collision2D collision)
+        {
             if (IsDefeated)
             {
                 return;
             }
 
-            PlayerController2D player = collision.collider.GetComponentInParent<PlayerController2D>();
+            PlayerController2D player = collision.otherCollider.GetComponentInParent<PlayerController2D>();
+            if (player == null)
+            {
+                player = collision.collider.GetComponentInParent<PlayerController2D>();
+            }
+
             if (player == null)
             {
                 return;
@@ -129,7 +144,13 @@ namespace VibeCode.Platformer
 
         private bool IsStompCollision(PlayerController2D player, Collision2D collision)
         {
-            if (!canBeStomped || player == null || player.VerticalVelocity > -stompMinFallSpeed)
+            if (!canBeStomped || player == null)
+            {
+                return false;
+            }
+
+            float strongestDownwardVelocity = Mathf.Min(player.VerticalVelocity, player.PreviousVerticalVelocity);
+            if (strongestDownwardVelocity > -stompMinFallSpeed)
             {
                 return false;
             }
@@ -138,10 +159,11 @@ namespace VibeCode.Platformer
                 ? bodyCollider.bounds
                 : new Bounds(transform.position, Vector3.zero);
 
-            float stompLine = enemyBounds.max.y - stompContactPadding;
+            float stompLine = enemyBounds.center.y + stompContactPadding;
             Bounds playerBounds = player.CollisionBounds;
+            bool playerAboveEnemy = playerBounds.center.y >= enemyBounds.center.y;
 
-            if (playerBounds.min.y >= stompLine && playerBounds.center.y >= enemyBounds.center.y)
+            if (playerBounds.min.y >= stompLine && playerAboveEnemy)
             {
                 return true;
             }
@@ -149,7 +171,7 @@ namespace VibeCode.Platformer
             for (int index = 0; index < collision.contactCount; index++)
             {
                 ContactPoint2D contact = collision.GetContact(index);
-                if (contact.point.y >= stompLine && playerBounds.center.y >= enemyBounds.center.y)
+                if (contact.point.y >= stompLine && playerAboveEnemy)
                 {
                     return true;
                 }

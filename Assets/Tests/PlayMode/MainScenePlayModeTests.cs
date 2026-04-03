@@ -73,5 +73,95 @@ namespace VibeCode.Tests.PlayMode
             Assert.That(gameManager.TryReachExit(), Is.True, "Expected the exit to succeed after collecting the minimum seeds.");
             Assert.That(gameManager.HasWon, Is.True, "Expected the manager to mark the slice as won.");
         }
+
+        [UnityTest]
+        public IEnumerator LandingOnEnemyDefeatsIt()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            PatrollingEnemy2D enemyPatrol = Object.FindAnyObjectByType<PatrollingEnemy2D>();
+
+            Assert.That(player, Is.Not.Null);
+            Assert.That(enemyPatrol, Is.Not.Null);
+
+            enemyPatrol.enabled = false;
+
+            Enemy2D enemy = enemyPatrol.GetComponent<Enemy2D>();
+            Rigidbody2D enemyBody = enemy != null ? enemy.Body : null;
+            Rigidbody2D playerBody = player.GetComponent<Rigidbody2D>();
+
+            Assert.That(enemy, Is.Not.Null);
+            Assert.That(enemyBody, Is.Not.Null);
+            Assert.That(playerBody, Is.Not.Null);
+
+            enemyBody.linearVelocity = Vector2.zero;
+            player.transform.position = enemy.transform.position + new Vector3(0f, 0.75f, 0f);
+            playerBody.linearVelocity = new Vector2(0f, -6f);
+
+            for (int index = 0; index < 30 && enemy != null; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            yield return null;
+
+            Assert.That(enemy == null, Is.True, "Expected landing on the enemy from above to defeat it.");
+            Assert.That(player, Is.Not.Null, "Expected the player to remain active after stomping the enemy.");
+        }
+
+        [UnityTest]
+        public IEnumerator PlayerCanStillCollectSeedsAfterDefeatingEnemy()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            GravityGardenGameManager gameManager = Object.FindAnyObjectByType<GravityGardenGameManager>();
+            PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            PatrollingEnemy2D enemyPatrol = Object.FindAnyObjectByType<PatrollingEnemy2D>();
+            EnergySeedCollectible[] seeds = Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None);
+
+            Assert.That(gameManager, Is.Not.Null);
+            Assert.That(player, Is.Not.Null);
+            Assert.That(enemyPatrol, Is.Not.Null);
+            Assert.That(seeds.Length, Is.GreaterThan(0));
+
+            enemyPatrol.enabled = false;
+
+            Enemy2D enemy = enemyPatrol.GetComponent<Enemy2D>();
+            Rigidbody2D enemyBody = enemy != null ? enemy.Body : null;
+            Rigidbody2D playerBody = player.GetComponent<Rigidbody2D>();
+
+            Assert.That(enemy, Is.Not.Null);
+            Assert.That(enemyBody, Is.Not.Null);
+            Assert.That(playerBody, Is.Not.Null);
+
+            enemyBody.linearVelocity = Vector2.zero;
+            player.transform.position = enemy.transform.position + new Vector3(0f, 0.75f, 0f);
+            playerBody.linearVelocity = new Vector2(0f, -6f);
+
+            for (int index = 0; index < 30 && enemy != null; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(enemy == null, Is.True, "Expected landing on the enemy from above to defeat it.");
+
+            EnergySeedCollectible seed = seeds[0];
+            int collectedBefore = gameManager.CollectedSeeds;
+
+            playerBody.linearVelocity = Vector2.zero;
+            player.transform.position = seed.transform.position;
+
+            for (int index = 0; index < 3 && gameManager.CollectedSeeds == collectedBefore; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(gameManager.CollectedSeeds, Is.GreaterThan(collectedBefore),
+                "Expected the player to keep collecting seeds after defeating an enemy.");
+            Assert.That(seed.gameObject.activeSelf, Is.False, "Expected the collected seed to deactivate.");
+        }
     }
 }

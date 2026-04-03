@@ -70,6 +70,7 @@ namespace VibeCode.Platformer
 
         public bool IsGrounded { get; private set; }
         public float VerticalVelocity => body != null ? body.linearVelocity.y : 0f;
+        public float PreviousVerticalVelocity => lastVerticalVelocity;
         public Bounds CollisionBounds => bodyCollider != null
             ? bodyCollider.bounds
             : new Bounds(transform.position, Vector3.zero);
