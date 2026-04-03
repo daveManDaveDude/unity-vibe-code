@@ -19,7 +19,7 @@ The project includes:
 - a `Main` scene in `Assets/Scenes/Main.unity`
 - starter scripts under `Assets/Scripts/`
 
-## Build the starter platformer scene
+## Build the Gravity Garden slice
 
 After Unity finishes importing scripts:
 
@@ -28,12 +28,21 @@ After Unity finishes importing scripts:
 3. In the Unity menu bar, click `Vibe` -> `Build Platformer Starter Scene`.
 4. Press Play.
 
-The scene builder will create a simple placeholder level, a player with `Rigidbody2D` movement, and a camera follow setup.
+The scene builder will refresh the current Gravity Garden playable slice with placeholder art, player movement, seeds, a HUD, an exit portal, and a fall-respawn zone.
 
 ## Default controls
 
 - move: `A` / `D` or left / right arrow
 - jump: `Space`
+
+## Gravity Garden gameplay loop
+
+This first slice is a short one-screen platforming run:
+
+- start on the glowing garden patch at the left side of the level
+- collect enough `energy seeds` to power the exit portal
+- avoid falling into the kill zone below the level or you will respawn at the start
+- once the HUD says the portal is ready, reach the exit on the right to win the slice
 
 ## What should be committed
 

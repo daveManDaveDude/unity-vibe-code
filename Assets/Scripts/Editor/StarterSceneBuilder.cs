@@ -32,6 +32,7 @@ public static class StarterSceneBuilder
 
         GameObject player = CreateOrUpdatePlayer(placeholderSprite, inputActions);
         CreateOrUpdateLevel(placeholderSprite);
+        CreateOrUpdateGameplay(player, placeholderSprite);
         ConfigureCamera(player.transform);
         EnsureBuildSettings();
 
@@ -40,7 +41,7 @@ public static class StarterSceneBuilder
         AssetDatabase.SaveAssets();
 
         Selection.activeGameObject = player;
-        Debug.Log("Starter platformer scene created. Press Play to move with A/D or arrow keys and jump with Space.");
+        Debug.Log("Gravity Garden slice created. Press Play to collect seeds, avoid the fall zone, and reach the portal.");
     }
 
     private static void EnsureFolders()
@@ -125,6 +126,25 @@ public static class StarterSceneBuilder
         CreateOrUpdatePlatform(levelRoot.transform, "Platform C", sprite, new Vector2(7.5f, 2.5f), new Vector2(3f, 0.75f), new Color(0.27f, 0.45f, 0.65f));
     }
 
+    private static void CreateOrUpdateGameplay(GameObject player, Sprite sprite)
+    {
+        GameObject gameplayRoot = FindOrCreateRoot("Gameplay");
+        Transform respawnPoint = EnsureRespawnPoint(gameplayRoot.transform);
+        PlayerController2D playerController = player.GetComponent<PlayerController2D>();
+
+        GravityGardenGameManager gameManager = GetOrAddComponent<GravityGardenGameManager>(gameplayRoot);
+        ConfigureGameManager(gameManager, playerController, respawnPoint, 3);
+
+        GravityGardenHud hud = GetOrAddComponent<GravityGardenHud>(gameplayRoot);
+        ConfigureHud(hud, gameManager);
+
+        GameObject sliceObjectsRoot = FindOrCreateRoot("Slice Objects");
+        CreateOrUpdateStartMarker(sliceObjectsRoot.transform, sprite);
+        CreateOrUpdateExitPortal(sliceObjectsRoot.transform, sprite, gameManager);
+        CreateOrUpdateSeeds(sliceObjectsRoot.transform, sprite, gameManager);
+        CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
+    }
+
     private static void CreateOrUpdatePlatform(Transform parent, string objectName, Sprite sprite, Vector2 position, Vector2 size, Color color)
     {
         GameObject platform = FindOrCreateChild(parent, objectName);
@@ -145,7 +165,7 @@ public static class StarterSceneBuilder
     private static GameObject CreateOrUpdatePlayer(Sprite sprite, InputActionAsset inputActions)
     {
         GameObject player = FindOrCreateRoot("Player");
-        player.transform.position = new Vector3(-6f, -1.1f, 0f);
+        player.transform.position = new Vector3(-6.5f, -1.1f, 0f);
         player.transform.localScale = Vector3.one;
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(player);
@@ -171,6 +191,93 @@ public static class StarterSceneBuilder
         controller.Configure(body, bodyCollider, groundCheck, inputActions, 1 << 0);
 
         return player;
+    }
+
+    private static Transform EnsureRespawnPoint(Transform parent)
+    {
+        GameObject respawnPoint = FindOrCreateChild(parent, "Respawn Point");
+        respawnPoint.transform.position = new Vector3(-6.5f, -1.1f, 0f);
+        respawnPoint.transform.localScale = Vector3.one;
+        return respawnPoint.transform;
+    }
+
+    private static void CreateOrUpdateStartMarker(Transform parent, Sprite sprite)
+    {
+        GameObject startMarker = FindOrCreateChild(parent, "Start Area");
+        startMarker.transform.position = new Vector3(-6.5f, -1.84f, 0f);
+        startMarker.transform.localScale = new Vector3(2.8f, 0.28f, 1f);
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(startMarker);
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.42f, 0.78f, 0.47f, 1f);
+        renderer.sortingOrder = 1;
+        renderer.drawMode = SpriteDrawMode.Simple;
+    }
+
+    private static void CreateOrUpdateExitPortal(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
+    {
+        GameObject exitPortal = FindOrCreateChild(parent, "Exit Portal");
+        exitPortal.transform.position = new Vector3(8.2f, -0.8f, 0f);
+        exitPortal.transform.localScale = new Vector3(1.2f, 2.4f, 1f);
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(exitPortal);
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.42f, 0.3f, 0.63f, 1f);
+        renderer.sortingOrder = 2;
+        renderer.drawMode = SpriteDrawMode.Simple;
+
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(exitPortal);
+        collider.size = Vector2.one;
+        collider.offset = Vector2.zero;
+        collider.isTrigger = true;
+
+        ExitPortal portal = GetOrAddComponent<ExitPortal>(exitPortal);
+        ConfigurePortal(portal, gameManager, collider, renderer);
+    }
+
+    private static void CreateOrUpdateSeeds(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
+    {
+        GameObject seedsRoot = FindOrCreateChild(parent, "Seed Group");
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 1", sprite, new Vector2(-5.2f, -1.15f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 2", sprite, new Vector2(-2.5f, 0.9f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 3", sprite, new Vector2(3.5f, 2.35f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 4", sprite, new Vector2(7.5f, 3.55f), gameManager);
+    }
+
+    private static void CreateOrUpdateSeed(Transform parent, string objectName, Sprite sprite, Vector2 position, GravityGardenGameManager gameManager)
+    {
+        GameObject seed = FindOrCreateChild(parent, objectName);
+        seed.transform.position = new Vector3(position.x, position.y, 0f);
+        seed.transform.localScale = new Vector3(0.45f, 0.45f, 1f);
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(seed);
+        renderer.sprite = sprite;
+        renderer.color = new Color(0.95f, 0.88f, 0.38f, 1f);
+        renderer.sortingOrder = 3;
+        renderer.drawMode = SpriteDrawMode.Simple;
+
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(seed);
+        collider.size = Vector2.one;
+        collider.offset = Vector2.zero;
+        collider.isTrigger = true;
+
+        EnergySeedCollectible collectible = GetOrAddComponent<EnergySeedCollectible>(seed);
+        ConfigureSeed(collectible, gameManager, collider, renderer, 1);
+    }
+
+    private static void CreateOrUpdateKillZone(Transform parent, GravityGardenGameManager gameManager)
+    {
+        GameObject killZone = FindOrCreateChild(parent, "Kill Zone");
+        killZone.transform.position = new Vector3(0f, -8.5f, 0f);
+        killZone.transform.localScale = new Vector3(40f, 2f, 1f);
+
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(killZone);
+        collider.size = Vector2.one;
+        collider.offset = Vector2.zero;
+        collider.isTrigger = true;
+
+        KillZone2D zone = GetOrAddComponent<KillZone2D>(killZone);
+        ConfigureKillZone(zone, gameManager, collider);
     }
 
     private static Transform EnsureGroundCheck(Transform parent)
@@ -206,6 +313,49 @@ public static class StarterSceneBuilder
 
         CameraFollow2D follow = GetOrAddComponent<CameraFollow2D>(mainCamera.gameObject);
         follow.SetTarget(target);
+    }
+
+    private static void ConfigureGameManager(GravityGardenGameManager gameManager, PlayerController2D player, Transform respawnPoint, int minimumSeedsToExit)
+    {
+        SerializedObject serializedObject = new SerializedObject(gameManager);
+        serializedObject.FindProperty("player").objectReferenceValue = player;
+        serializedObject.FindProperty("respawnPoint").objectReferenceValue = respawnPoint;
+        serializedObject.FindProperty("minimumSeedsToExit").intValue = minimumSeedsToExit;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureHud(GravityGardenHud hud, GravityGardenGameManager gameManager)
+    {
+        SerializedObject serializedObject = new SerializedObject(hud);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigurePortal(ExitPortal portal, GravityGardenGameManager gameManager, Collider2D triggerCollider, SpriteRenderer renderer)
+    {
+        SerializedObject serializedObject = new SerializedObject(portal);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureSeed(EnergySeedCollectible collectible, GravityGardenGameManager gameManager, Collider2D triggerCollider, SpriteRenderer renderer, int seedValue)
+    {
+        SerializedObject serializedObject = new SerializedObject(collectible);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
+        serializedObject.FindProperty("seedValue").intValue = seedValue;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureKillZone(KillZone2D killZone, GravityGardenGameManager gameManager, Collider2D triggerCollider)
+    {
+        SerializedObject serializedObject = new SerializedObject(killZone);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void EnsureBuildSettings()
