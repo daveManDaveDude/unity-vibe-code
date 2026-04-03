@@ -30,6 +30,7 @@ namespace VibeCode.Platformer
         [SerializeField] private float groundDeceleration = 60f;
         [SerializeField] private float airAcceleration = 26.25f;
         [SerializeField] private float airDeceleration = 30f;
+        [SerializeField] private int maxJumpCount = 2;
         [SerializeField] private float jumpVelocity = 9.2f;
 
         [Header("Jump Feel")]
@@ -61,6 +62,7 @@ namespace VibeCode.Platformer
         private Vector2 moveInput;
         private bool jumpQueued;
         private float defaultGravityScale;
+        private int jumpsUsed;
         private float lastVerticalVelocity;
         private float facingDirection = 1f;
         private bool wasGroundedLastStep;
@@ -132,6 +134,11 @@ namespace VibeCode.Platformer
             jumpAction?.Disable();
         }
 
+        private void OnValidate()
+        {
+            maxJumpCount = Mathf.Max(1, maxJumpCount);
+        }
+
         private void Update()
         {
             if (moveAction != null)
@@ -182,6 +189,7 @@ namespace VibeCode.Platformer
         {
             moveInput = Vector2.zero;
             jumpQueued = false;
+            jumpsUsed = 0;
             IsGrounded = false;
             lastVerticalVelocity = 0f;
             wasGroundedLastStep = false;
@@ -258,6 +266,11 @@ namespace VibeCode.Platformer
             }
 
             IsGrounded = grounded;
+
+            if (IsGrounded)
+            {
+                jumpsUsed = 0;
+            }
         }
 
         private void ApplyHorizontalMovement(float deltaTime)
@@ -292,23 +305,41 @@ namespace VibeCode.Platformer
 
         private void TryJump()
         {
+            if (!jumpQueued)
+            {
+                return;
+            }
+
+            jumpQueued = false;
+
             if (body == null)
             {
                 return;
             }
 
-            if (!jumpQueued || !IsGrounded)
+            if (!CanJump())
             {
                 return;
             }
 
+            bool groundJump = IsGrounded;
             Vector2 velocity = body.linearVelocity;
             velocity.y = jumpVelocity;
             body.linearVelocity = velocity;
-            SpawnDustBurst(0.7f, 0.35f, 0.22f);
+
+            jumpsUsed = Mathf.Min(jumpsUsed + 1, maxJumpCount);
+
+            if (groundJump)
+            {
+                SpawnDustBurst(0.7f, 0.35f, 0.22f);
+            }
 
             IsGrounded = false;
-            jumpQueued = false;
+        }
+
+        private bool CanJump()
+        {
+            return IsGrounded || jumpsUsed < maxJumpCount;
         }
 
         private void ApplyGravityTuning()

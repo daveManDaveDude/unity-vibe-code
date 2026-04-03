@@ -28,6 +28,24 @@ namespace VibeCode.Tests.EditMode
         }
 
         [Test]
+        public void PlayerControllerDefaultsToDoubleJumpSupport()
+        {
+            var player = new GameObject("Player Under Test");
+
+            try
+            {
+                PlayerController2D controller = player.AddComponent<PlayerController2D>();
+                SerializedObject serializedObject = new SerializedObject(controller);
+
+                Assert.That(serializedObject.FindProperty("maxJumpCount").intValue, Is.EqualTo(2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
         public void MainSceneAssetExists()
         {
             SceneAsset mainScene = AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Scenes/Main.unity");

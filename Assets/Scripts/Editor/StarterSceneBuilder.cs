@@ -16,7 +16,6 @@ public static class StarterSceneBuilder
     private static readonly Vector2 EnemySize = new Vector2(0.45f, 0.35f);
     private static readonly float PlayerGroundedY = -2.3375f;
     private static readonly Vector2 PlatformSize = new Vector2(1f, 0.1875f);
-    private static readonly Vector2 SmallPlatformSize = new Vector2(0.75f, 0.1875f);
 
     [MenuItem("Vibe/Build Platformer Starter Scene")]
     public static void BuildPlatformerStarterScene()
@@ -131,12 +130,14 @@ public static class StarterSceneBuilder
     {
         GameObject levelRoot = FindOrCreateRoot("Level");
         CreateOrUpdatePlatform(levelRoot.transform, "Ground", sprite, new Vector2(7f, -2.75f), new Vector2(40f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform A", sprite, new Vector2(-7.5f, -1.65f), PlatformSize, new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform B", sprite, new Vector2(-2.25f, -0.65f), PlatformSize, new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform C", sprite, new Vector2(3.25f, 0.25f), SmallPlatformSize, new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform D", sprite, new Vector2(8.75f, 1f), PlatformSize, new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform E", sprite, new Vector2(14.25f, 1.8f), PlatformSize, new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform F", sprite, new Vector2(19.75f, 1.1f), SmallPlatformSize, new Color(0.27f, 0.45f, 0.65f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform A", sprite, new Vector2(-10.4f, -1.95f), new Vector2(2.6f, PlatformSize.y), new Color(0.24f, 0.43f, 0.66f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform B", sprite, new Vector2(-6.6f, -1.2f), new Vector2(1.9f, PlatformSize.y), new Color(0.31f, 0.49f, 0.71f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform C", sprite, new Vector2(-2.2f, -0.45f), new Vector2(2.9f, PlatformSize.y), new Color(0.27f, 0.45f, 0.65f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform D", sprite, new Vector2(2.1f, -0.85f), new Vector2(1.7f, PlatformSize.y), new Color(0.34f, 0.48f, 0.7f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform E", sprite, new Vector2(6.6f, 0f), new Vector2(2.4f, PlatformSize.y), new Color(0.27f, 0.45f, 0.65f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform F", sprite, new Vector2(11.05f, 0.75f), new Vector2(1.9f, PlatformSize.y), new Color(0.3f, 0.44f, 0.67f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform G", sprite, new Vector2(15.85f, 0.15f), new Vector2(2.8f, PlatformSize.y), new Color(0.29f, 0.47f, 0.68f));
+        CreateOrUpdatePlatform(levelRoot.transform, "Platform H", sprite, new Vector2(20.7f, 1.1f), new Vector2(2f, PlatformSize.y), new Color(0.34f, 0.52f, 0.72f));
     }
 
     private static void CreateOrUpdateGameplay(GameObject player, Sprite sprite, GameObject enemyPrefab)
@@ -321,12 +322,12 @@ public static class StarterSceneBuilder
     {
         GameObject seedsRoot = FindOrCreateChild(parent, "Seed Group");
         CreateOrUpdateSeed(seedsRoot.transform, "Seed 1", sprite, new Vector2(-10.75f, -2.2f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 2", sprite, new Vector2(-7.5f, -1.32f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 3", sprite, new Vector2(-2.25f, -0.32f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 4", sprite, new Vector2(3.25f, 0.58f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 5", sprite, new Vector2(8.75f, 1.33f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 6", sprite, new Vector2(14.25f, 2.12f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 7", sprite, new Vector2(19.75f, 1.42f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 2", sprite, new Vector2(-10.4f, -1.55f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 3", sprite, new Vector2(-6.6f, -0.8f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 4", sprite, new Vector2(-2.2f, -0.05f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 5", sprite, new Vector2(2.1f, -0.45f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 6", sprite, new Vector2(6.6f, 0.4f), gameManager);
+        CreateOrUpdateSeed(seedsRoot.transform, "Seed 7", sprite, new Vector2(15.85f, 0.55f), gameManager);
     }
 
     private static void CreateOrUpdateSeed(Transform parent, string objectName, Sprite sprite, Vector2 position, GravityGardenGameManager gameManager)
@@ -369,10 +370,10 @@ public static class StarterSceneBuilder
     {
         GameObject enemiesRoot = FindOrCreateChild(parent, "Enemies");
 
-        CreateOrUpdateEnemyBlocker(enemiesRoot.transform, "Enemy Blocker", sprite, new Vector2(9.18f, 1.36875f), new Vector2(0.18f, 0.55f), new Color(0.24f, 0.19f, 0.18f, 1f));
+        CreateOrUpdateEnemyBlocker(enemiesRoot.transform, "Enemy Blocker", sprite, new Vector2(7.6f, 0.375f), new Vector2(0.16f, 0.55f), new Color(0.24f, 0.19f, 0.18f, 1f));
 
         GameObject enemyObject = FindOrCreatePrefabChild(enemiesRoot.transform, "Patrolling Enemy", enemyPrefab);
-        enemyObject.transform.position = new Vector3(8.55f, 1.26875f, 0f);
+        enemyObject.transform.position = new Vector3(6.85f, 0.26875f, 0f);
         enemyObject.transform.localScale = Vector3.one;
     }
 
@@ -468,6 +469,7 @@ public static class StarterSceneBuilder
         serializedObject.FindProperty("groundDeceleration").floatValue = 60f;
         serializedObject.FindProperty("airAcceleration").floatValue = 26.25f;
         serializedObject.FindProperty("airDeceleration").floatValue = 30f;
+        serializedObject.FindProperty("maxJumpCount").intValue = 2;
         serializedObject.FindProperty("jumpVelocity").floatValue = 9.2f;
         serializedObject.FindProperty("lowJumpGravityMultiplier").floatValue = 2f;
         serializedObject.FindProperty("maxFallSpeed").floatValue = 20f;
