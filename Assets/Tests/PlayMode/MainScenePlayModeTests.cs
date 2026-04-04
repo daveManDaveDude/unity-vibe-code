@@ -41,25 +41,50 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a kill zone.");
             Assert.That(Object.FindAnyObjectByType<MovingPlatform2D>(), Is.Not.Null,
                 "Expected Main scene to contain a moving platform traversal helper.");
-            GameObject thornCanopy = GameObject.Find("Thorn Canopy");
             GameObject hazardWaitPerch = GameObject.Find("Hazard Wait Perch");
+            GameObject hazardBridge = GameObject.Find("Hazard Bridge");
             GameObject landingPerch = GameObject.Find("Landing Perch");
-            BoxCollider2D thornCanopyCollider = thornCanopy != null ? thornCanopy.GetComponent<BoxCollider2D>() : null;
+            GameObject buttonPathPlatformA = GameObject.Find("Button Path Platform A");
+            GameObject buttonPathPlatformB = GameObject.Find("Button Path Platform B");
+            GameObject buttonPathPlatformC = GameObject.Find("Button Path Platform C");
+            GameObject finalGround = GameObject.Find("Final Ground");
+            GameObject gateButton = GameObject.Find("Gate Button");
             SpriteRenderer hazardWaitPerchRenderer = hazardWaitPerch != null ? hazardWaitPerch.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer hazardBridgeRenderer = hazardBridge != null ? hazardBridge.GetComponent<SpriteRenderer>() : null;
             SpriteRenderer landingPerchRenderer = landingPerch != null ? landingPerch.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer buttonPathPlatformARenderer = buttonPathPlatformA != null ? buttonPathPlatformA.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer buttonPathPlatformBRenderer = buttonPathPlatformB != null ? buttonPathPlatformB.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer buttonPathPlatformCRenderer = buttonPathPlatformC != null ? buttonPathPlatformC.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer finalGroundRenderer = finalGround != null ? finalGround.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer gateButtonRenderer = gateButton != null ? gateButton.GetComponent<SpriteRenderer>() : null;
 
-            Assert.That(thornCanopyCollider, Is.Not.Null,
-                "Expected the thorn bridge route to include a low canopy that blocks a direct double-jump skip.");
             Assert.That(hazardWaitPerchRenderer, Is.Not.Null);
+            Assert.That(hazardBridgeRenderer, Is.Not.Null);
             Assert.That(landingPerchRenderer, Is.Not.Null);
+            Assert.That(buttonPathPlatformARenderer, Is.Not.Null);
+            Assert.That(buttonPathPlatformBRenderer, Is.Not.Null);
+            Assert.That(buttonPathPlatformCRenderer, Is.Not.Null);
+            Assert.That(finalGroundRenderer, Is.Not.Null);
+            Assert.That(gateButtonRenderer, Is.Not.Null);
 
-            Bounds thornCanopyBounds = thornCanopyCollider.bounds;
-            Assert.That(thornCanopyBounds.min.x, Is.LessThanOrEqualTo(hazardWaitPerchRenderer.bounds.max.x + 0.35f),
-                "Expected the thorn canopy to begin close to the wait perch so players must drop onto the bridge route.");
-            Assert.That(thornCanopyBounds.max.x, Is.GreaterThanOrEqualTo(landingPerchRenderer.bounds.min.x - 0.35f),
-                "Expected the thorn canopy to cover most of the spike gap so it blocks a direct hop to the landing perch.");
-            Assert.That(thornCanopyBounds.min.y, Is.LessThanOrEqualTo(hazardWaitPerchRenderer.bounds.max.y + 0.08f),
-                "Expected the thorn canopy to sit low enough to stop the aerial shortcut over the spike bridge.");
+            Assert.That(GameObject.Find("Thorn Canopy"), Is.Null,
+                "Expected the thorn section to stay open overhead rather than covering the spikes.");
+            Assert.That(landingPerchRenderer.bounds.min.x - hazardWaitPerchRenderer.bounds.max.x, Is.GreaterThan(5f),
+                "Expected the landing perch to sit far enough away that the player must touch the hazard bridge instead of clearing the whole section in one air route.");
+            Assert.That(landingPerchRenderer.bounds.min.x - hazardBridgeRenderer.bounds.max.x, Is.LessThan(3f),
+                "Expected the landing perch to remain close enough to the hazard bridge for the intended second jump.");
+            Assert.That(buttonPathPlatformARenderer.bounds.min.x - landingPerchRenderer.bounds.max.x, Is.LessThan(0.4f),
+                "Expected the final route to start with a reachable jump from the landing perch onto the first button-path platform.");
+            Assert.That(buttonPathPlatformBRenderer.bounds.min.x - buttonPathPlatformARenderer.bounds.max.x, Is.LessThan(0.35f),
+                "Expected the mid button-path platform to continue the stepping-stone route without a harsh gap.");
+            Assert.That(buttonPathPlatformCRenderer.bounds.min.x - buttonPathPlatformBRenderer.bounds.max.x, Is.LessThan(0.35f),
+                "Expected the last button-path platform to stay reachable from the middle step.");
+            Assert.That(finalGroundRenderer.bounds.min.x - landingPerchRenderer.bounds.max.x, Is.GreaterThan(5f),
+                "Expected the button island to sit far enough away that the player must use the floating platforms instead of jumping straight to the button.");
+            Assert.That(finalGroundRenderer.bounds.min.x - buttonPathPlatformCRenderer.bounds.max.x, Is.LessThan(0.2f),
+                "Expected the last button-path platform to hand the player cleanly onto the final ground section.");
+            Assert.That(gateButtonRenderer.bounds.center.x, Is.InRange(finalGroundRenderer.bounds.min.x, finalGroundRenderer.bounds.max.x),
+                "Expected the gate button to remain on the far-right ground section that the new platform route leads toward.");
 
             PatrollingEnemy2D patrollingEnemy = Object.FindAnyObjectByType<PatrollingEnemy2D>();
             SpriteRenderer[] patrollingEnemyRenderers = patrollingEnemy != null
@@ -80,6 +105,8 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a hovering enemy encounter.");
             Assert.That(hoveringEnemyRenderers, Is.Not.Null.And.Length.GreaterThan(0),
                 "Expected the hovering enemy encounter to have visible placeholder renderers.");
+            Assert.That(hoveringEnemy.transform.position.x, Is.InRange(buttonPathPlatformARenderer.bounds.min.x - 0.3f, buttonPathPlatformCRenderer.bounds.max.x + 0.3f),
+                "Expected the hovering enemy to patrol across the final platform route before the gate button.");
 
             float tallestEnemyRendererHeight = 0f;
             for (int index = 0; index < patrollingEnemyRenderers.Length; index++)

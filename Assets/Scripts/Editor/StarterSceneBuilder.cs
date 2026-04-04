@@ -235,14 +235,16 @@ public static class StarterSceneBuilder
         CreateOrUpdatePlatform(terrainRoot, "Mid Ground", sprite, new Vector2(4.9f, GroundY), new Vector2(4.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Hazard Wait Perch", sprite, new Vector2(8.4f, -1.35f), new Vector2(1.4f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Hazard Bridge", sprite, new Vector2(10.45f, GroundY), new Vector2(2.4f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
-        CreateOrUpdatePlatform(terrainRoot, "Thorn Canopy", sprite, new Vector2(10.475f, -1.16f), new Vector2(2.35f, 0.24f), new Color(0.21f, 0.42f, 0.28f, 1f));
-        CreateOrUpdatePlatform(terrainRoot, "Landing Perch", sprite, new Vector2(12.65f, -1.35f), new Vector2(1.6f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
-        CreateOrUpdatePlatform(terrainRoot, "Final Ground", sprite, new Vector2(16.2f, GroundY), new Vector2(6.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Landing Perch", sprite, new Vector2(15.1f, -1.35f), new Vector2(1.6f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Final Step", sprite, new Vector2(14.25f, -0.85f), new Vector2(1.7f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
-        CreateOrUpdatePlatform(terrainRoot, "Portal Dais", sprite, new Vector2(18.65f, -2.45f), new Vector2(1.55f, 0.12f), new Color(0.25f, 0.34f, 0.23f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Button Path Platform A", sprite, new Vector2(16.95f, -1.35f), new Vector2(1.45f, StaticPlatformThickness.y), new Color(0.2f, 0.33f, 0.4f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Button Path Platform B", sprite, new Vector2(18.6f, -0.9f), new Vector2(1.4f, StaticPlatformThickness.y), new Color(0.2f, 0.33f, 0.4f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Button Path Platform C", sprite, new Vector2(20.25f, -1.35f), new Vector2(1.45f, StaticPlatformThickness.y), new Color(0.2f, 0.33f, 0.4f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Final Ground", sprite, new Vector2(23.85f, GroundY), new Vector2(5.5f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Portal Dais", sprite, new Vector2(25.85f, -2.45f), new Vector2(1.55f, 0.12f), new Color(0.25f, 0.34f, 0.23f, 1f));
 
-        CreateOrUpdateBackdrop(sceneryRoot, "Garden Backdrop", sprite, new Vector2(2.4f, -0.95f), new Vector2(39.2f, 6.8f), new Color(0.2f, 0.39f, 0.42f, 0.2f));
-        CreateOrUpdateBackdrop(sceneryRoot, "Abyss Fog", sprite, new Vector2(2.5f, -5.4f), new Vector2(46f, 3f), new Color(0.06f, 0.11f, 0.14f, 0.5f));
+        CreateOrUpdateBackdrop(sceneryRoot, "Garden Backdrop", sprite, new Vector2(5.4f, -0.95f), new Vector2(45.2f, 6.8f), new Color(0.2f, 0.39f, 0.42f, 0.2f));
+        CreateOrUpdateBackdrop(sceneryRoot, "Abyss Fog", sprite, new Vector2(5.4f, -5.4f), new Vector2(52f, 3f), new Color(0.06f, 0.11f, 0.14f, 0.5f));
     }
 
     private static void CreateOrUpdateSliceObjects(
@@ -477,7 +479,7 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateHoveringEnemy(Transform parent, GameObject hoveringEnemyPrefab)
     {
         GameObject enemy = InstantiatePrefabChild(parent, "Garden Glider", hoveringEnemyPrefab);
-        enemy.transform.position = new Vector3(13.9f, -1.28f, 0f);
+        enemy.transform.position = new Vector3(17.85f, -0.7f, 0f);
         enemy.transform.rotation = Quaternion.identity;
         enemy.transform.localScale = Vector3.one;
 
@@ -485,7 +487,7 @@ public static class StarterSceneBuilder
         if (pathRoot != null)
         {
             EnsureChildMarker(pathRoot, "Point A", Vector3.zero);
-            EnsureChildMarker(pathRoot, "Point B", new Vector3(2.2f, 0f, 0f));
+            EnsureChildMarker(pathRoot, "Point B", new Vector3(3.1f, 0f, 0f));
         }
 
         Enemy2D enemyBase = enemy.GetComponent<Enemy2D>();
@@ -552,12 +554,12 @@ public static class StarterSceneBuilder
         portalRoot.transform.position = Vector3.zero;
         portalRoot.transform.localScale = Vector3.one;
 
-        CreateOrUpdateVisualChild(portalRoot.transform, "Left Post", sprite, new Vector3(18.2f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
-        CreateOrUpdateVisualChild(portalRoot.transform, "Right Post", sprite, new Vector3(19.08f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
-        CreateOrUpdateVisualChild(portalRoot.transform, "Lintel", sprite, new Vector3(18.64f, -1.68f, 0f), new Vector3(1f, 0.12f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+        CreateOrUpdateVisualChild(portalRoot.transform, "Left Post", sprite, new Vector3(25.35f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+        CreateOrUpdateVisualChild(portalRoot.transform, "Right Post", sprite, new Vector3(26.23f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+        CreateOrUpdateVisualChild(portalRoot.transform, "Lintel", sprite, new Vector3(25.79f, -1.68f, 0f), new Vector3(1f, 0.12f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
 
         GameObject exitPortal = FindOrCreateChild(portalRoot.transform, "Portal");
-        exitPortal.transform.position = new Vector3(18.64f, -2.22f, 0f);
+        exitPortal.transform.position = new Vector3(25.79f, -2.22f, 0f);
         exitPortal.transform.localScale = new Vector3(0.3f, 0.64f, 1f);
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(exitPortal);
@@ -598,7 +600,7 @@ public static class StarterSceneBuilder
     private static LinkedGate2D CreateOrUpdateLinkedGate(Transform parent, Sprite sprite)
     {
         GameObject gateRoot = FindOrCreateChild(parent, "Portal Gate");
-        gateRoot.transform.position = new Vector3(17.2f, -0.46f, 0f);
+        gateRoot.transform.position = new Vector3(24.15f, -0.46f, 0f);
         gateRoot.transform.localScale = Vector3.one;
 
         BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(gateRoot);
@@ -640,7 +642,7 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateFloorButton(Transform parent, Sprite sprite, LinkedGate2D linkedGate)
     {
         GameObject pedestal = FindOrCreateChild(parent, "Gate Button Pedestal");
-        pedestal.transform.position = new Vector3(15.15f, -2.61f, 0f);
+        pedestal.transform.position = new Vector3(22.35f, -2.61f, 0f);
         pedestal.transform.localScale = new Vector3(1.05f, 0.1f, 1f);
 
         SpriteRenderer pedestalRenderer = GetOrAddComponent<SpriteRenderer>(pedestal);
@@ -651,7 +653,7 @@ public static class StarterSceneBuilder
         pedestalRenderer.size = Vector2.one;
 
         GameObject buttonRoot = FindOrCreateChild(parent, "Gate Button");
-        buttonRoot.transform.position = new Vector3(15.15f, -2.47f, 0f);
+        buttonRoot.transform.position = new Vector3(22.35f, -2.47f, 0f);
         buttonRoot.transform.localScale = new Vector3(0.78f, 0.18f, 1f);
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(buttonRoot);
@@ -694,8 +696,8 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateKillZone(Transform parent, GravityGardenGameManager gameManager)
     {
         GameObject killZone = FindOrCreateChild(parent, "Kill Zone");
-        killZone.transform.position = new Vector3(2.5f, -6.7f, 0f);
-        killZone.transform.localScale = new Vector3(46f, 1.5f, 1f);
+        killZone.transform.position = new Vector3(5.5f, -6.7f, 0f);
+        killZone.transform.localScale = new Vector3(52f, 1.5f, 1f);
 
         BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(killZone);
         collider.size = Vector2.one;
