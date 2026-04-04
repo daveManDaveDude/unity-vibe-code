@@ -14,6 +14,10 @@ namespace VibeCode.Platformer
         [SerializeField] private Color titleColor = new Color(0.9f, 0.97f, 0.93f, 1f);
         [SerializeField] private Color bodyColor = new Color(0.9f, 0.96f, 1f, 1f);
         [SerializeField] private Color accentColor = new Color(0.66f, 0.96f, 0.75f, 1f);
+        [SerializeField] private Color healthFullColor = new Color(0.95f, 0.43f, 0.4f, 1f);
+        [SerializeField] private Color healthEmptyColor = new Color(0.33f, 0.4f, 0.45f, 1f);
+        [SerializeField] private Vector2 healthPipSize = new Vector2(20f, 16f);
+        [SerializeField] private float healthPipSpacing = 6f;
 
         private GUIStyle titleStyle;
         private GUIStyle bodyStyle;
@@ -65,6 +69,24 @@ namespace VibeCode.Platformer
                 objectiveText,
                 objectiveStyle);
 
+            if (gameManager.MaxHealth > 0)
+            {
+                Rect healthPanel = new Rect(margin, seedPanel.yMax + 10f, 280f, 54f);
+                GUI.Box(healthPanel, GUIContent.none);
+
+                GUI.Label(
+                    new Rect(textX, healthPanel.y + 8f, 120f, bodyFontSize + 8f),
+                    "Health",
+                    bodyStyle);
+
+                GUI.Label(
+                    new Rect(healthPanel.xMax - 72f, healthPanel.y + 8f, 60f, bodyFontSize + 8f),
+                    $"{gameManager.CurrentHealth}/{gameManager.MaxHealth}",
+                    objectiveStyle);
+
+                DrawHealthPips(new Vector2(textX, healthPanel.y + 30f), gameManager.CurrentHealth, gameManager.MaxHealth);
+            }
+
             string statusText = gameManager.HasWon ? "Garden Restored!" : gameManager.CurrentStatusMessage;
             if (string.IsNullOrEmpty(statusText))
             {
@@ -112,6 +134,25 @@ namespace VibeCode.Platformer
             winStyle = new GUIStyle(statusStyle);
             winStyle.fontSize = winFontSize;
             winStyle.normal.textColor = accentColor;
+        }
+
+        private void DrawHealthPips(Vector2 origin, int currentHealth, int maxHealth)
+        {
+            Color previousColor = GUI.color;
+
+            for (int index = 0; index < maxHealth; index++)
+            {
+                Rect pipRect = new Rect(
+                    origin.x + (index * (healthPipSize.x + healthPipSpacing)),
+                    origin.y,
+                    healthPipSize.x,
+                    healthPipSize.y);
+
+                GUI.color = index < currentHealth ? healthFullColor : healthEmptyColor;
+                GUI.Box(pipRect, GUIContent.none);
+            }
+
+            GUI.color = previousColor;
         }
     }
 }

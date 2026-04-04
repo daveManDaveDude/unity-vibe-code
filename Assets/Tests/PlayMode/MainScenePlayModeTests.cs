@@ -16,10 +16,13 @@ namespace VibeCode.Tests.PlayMode
             yield return null;
 
             GravityGardenGameManager gameManager = Object.FindAnyObjectByType<GravityGardenGameManager>();
+            PlayerHealth2D playerHealth = Object.FindAnyObjectByType<PlayerHealth2D>();
 
             Assert.That(Camera.main, Is.Not.Null, "Expected Main scene to provide a Main Camera.");
             Assert.That(Object.FindAnyObjectByType<PlayerController2D>(), Is.Not.Null,
                 "Expected Main scene to contain a PlayerController2D instance.");
+            Assert.That(playerHealth, Is.Not.Null,
+                "Expected Main scene to contain the player health component.");
             Assert.That(gameManager, Is.Not.Null,
                 "Expected Main scene to contain a GravityGardenGameManager instance.");
             Assert.That(Object.FindAnyObjectByType<GravityGardenHud>(), Is.Not.Null,
@@ -38,6 +41,26 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a kill zone.");
             Assert.That(Object.FindAnyObjectByType<MovingPlatform2D>(), Is.Not.Null,
                 "Expected Main scene to contain a moving platform traversal helper.");
+            GameObject thornCanopy = GameObject.Find("Thorn Canopy");
+            GameObject hazardWaitPerch = GameObject.Find("Hazard Wait Perch");
+            GameObject landingPerch = GameObject.Find("Landing Perch");
+            BoxCollider2D thornCanopyCollider = thornCanopy != null ? thornCanopy.GetComponent<BoxCollider2D>() : null;
+            SpriteRenderer hazardWaitPerchRenderer = hazardWaitPerch != null ? hazardWaitPerch.GetComponent<SpriteRenderer>() : null;
+            SpriteRenderer landingPerchRenderer = landingPerch != null ? landingPerch.GetComponent<SpriteRenderer>() : null;
+
+            Assert.That(thornCanopyCollider, Is.Not.Null,
+                "Expected the thorn bridge route to include a low canopy that blocks a direct double-jump skip.");
+            Assert.That(hazardWaitPerchRenderer, Is.Not.Null);
+            Assert.That(landingPerchRenderer, Is.Not.Null);
+
+            Bounds thornCanopyBounds = thornCanopyCollider.bounds;
+            Assert.That(thornCanopyBounds.min.x, Is.LessThanOrEqualTo(hazardWaitPerchRenderer.bounds.max.x + 0.35f),
+                "Expected the thorn canopy to begin close to the wait perch so players must drop onto the bridge route.");
+            Assert.That(thornCanopyBounds.max.x, Is.GreaterThanOrEqualTo(landingPerchRenderer.bounds.min.x - 0.35f),
+                "Expected the thorn canopy to cover most of the spike gap so it blocks a direct hop to the landing perch.");
+            Assert.That(thornCanopyBounds.min.y, Is.LessThanOrEqualTo(hazardWaitPerchRenderer.bounds.max.y + 0.08f),
+                "Expected the thorn canopy to sit low enough to stop the aerial shortcut over the spike bridge.");
+
             PatrollingEnemy2D patrollingEnemy = Object.FindAnyObjectByType<PatrollingEnemy2D>();
             SpriteRenderer[] patrollingEnemyRenderers = patrollingEnemy != null
                 ? patrollingEnemy.GetComponentsInChildren<SpriteRenderer>()
@@ -47,6 +70,16 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a patrolling ground enemy encounter.");
             Assert.That(patrollingEnemyRenderers, Is.Not.Null.And.Length.GreaterThan(0),
                 "Expected the patrolling ground enemy encounter to have visible placeholder renderers.");
+
+            HoveringEnemy2D hoveringEnemy = Object.FindAnyObjectByType<HoveringEnemy2D>();
+            SpriteRenderer[] hoveringEnemyRenderers = hoveringEnemy != null
+                ? hoveringEnemy.GetComponentsInChildren<SpriteRenderer>()
+                : null;
+
+            Assert.That(hoveringEnemy, Is.Not.Null,
+                "Expected Main scene to contain a hovering enemy encounter.");
+            Assert.That(hoveringEnemyRenderers, Is.Not.Null.And.Length.GreaterThan(0),
+                "Expected the hovering enemy encounter to have visible placeholder renderers.");
 
             float tallestEnemyRendererHeight = 0f;
             for (int index = 0; index < patrollingEnemyRenderers.Length; index++)
@@ -60,6 +93,8 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a timed hazard.");
             Assert.That(Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None).Length, Is.GreaterThanOrEqualTo(gameManager.MinimumSeedsToExit),
                 "Expected Main scene to contain enough collectible energy seeds to finish the slice.");
+            Assert.That(gameManager.CurrentHealth, Is.EqualTo(playerHealth.MaxHealth),
+                "Expected the HUD-backed player health model to start full.");
         }
 
         [UnityTest]
@@ -142,18 +177,20 @@ namespace VibeCode.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator ThornBridgeTurnsDangerousAndRespawnsThePlayer()
+        public IEnumerator ThornBridgeTurnsDangerousAndRemovesOneHeart()
         {
             yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
             yield return null;
 
             CyclingSpikeHazard2D thornBridge = Object.FindAnyObjectByType<CyclingSpikeHazard2D>();
             PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            PlayerHealth2D playerHealth = Object.FindAnyObjectByType<PlayerHealth2D>();
             Rigidbody2D playerBody = player != null ? player.GetComponent<Rigidbody2D>() : null;
             GameObject respawnObject = GameObject.Find("Respawn Point");
 
             Assert.That(thornBridge, Is.Not.Null);
             Assert.That(player, Is.Not.Null);
+            Assert.That(playerHealth, Is.Not.Null);
             Assert.That(playerBody, Is.Not.Null);
             Assert.That(respawnObject, Is.Not.Null);
 
@@ -176,24 +213,30 @@ namespace VibeCode.Tests.PlayMode
                 yield return new WaitForFixedUpdate();
             }
 
-            Assert.That(player.transform.position.x, Is.EqualTo(respawnObject.transform.position.x).Within(0.05f));
-            Assert.That(player.transform.position.y, Is.EqualTo(respawnObject.transform.position.y).Within(0.05f));
+            Assert.That(playerHealth.CurrentHealth, Is.EqualTo(playerHealth.MaxHealth - 1),
+                "Expected the first thorn hit to remove one heart.");
+            Assert.That(Vector2.Distance(player.transform.position, respawnObject.transform.position), Is.GreaterThan(0.5f),
+                "Expected a single thorn hit to hurt the player without immediately respawning them.");
         }
 
         [UnityTest]
-        public IEnumerator TouchingPatrollingEnemyRespawnsThePlayer()
+        public IEnumerator TouchingPatrollingEnemyConsumesHeartsBeforeRespawn()
         {
             yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
             yield return null;
 
+            GravityGardenGameManager gameManager = Object.FindAnyObjectByType<GravityGardenGameManager>();
             PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            PlayerHealth2D playerHealth = Object.FindAnyObjectByType<PlayerHealth2D>();
             PatrollingEnemy2D patrollingEnemy = Object.FindAnyObjectByType<PatrollingEnemy2D>();
             Rigidbody2D playerBody = player != null ? player.GetComponent<Rigidbody2D>() : null;
             CapsuleCollider2D playerCollider = player != null ? player.GetComponent<CapsuleCollider2D>() : null;
             Collider2D enemyCollider = patrollingEnemy != null ? patrollingEnemy.GetComponent<Collider2D>() : null;
             GameObject respawnObject = GameObject.Find("Respawn Point");
 
+            Assert.That(gameManager, Is.Not.Null);
             Assert.That(player, Is.Not.Null);
+            Assert.That(playerHealth, Is.Not.Null);
             Assert.That(patrollingEnemy, Is.Not.Null);
             Assert.That(playerBody, Is.Not.Null);
             Assert.That(playerCollider, Is.Not.Null);
@@ -201,6 +244,7 @@ namespace VibeCode.Tests.PlayMode
             Assert.That(respawnObject, Is.Not.Null);
 
             Bounds enemyBounds = enemyCollider.bounds;
+            Vector2 damageSource = patrollingEnemy.transform.position;
             Vector3 contactPosition = new Vector3(
                 enemyBounds.min.x - playerCollider.bounds.extents.x + 0.02f,
                 enemyBounds.min.y + playerCollider.bounds.extents.y,
@@ -216,8 +260,55 @@ namespace VibeCode.Tests.PlayMode
                 yield return new WaitForFixedUpdate();
             }
 
+            Assert.That(playerHealth.CurrentHealth, Is.EqualTo(playerHealth.MaxHealth - 1),
+                "Expected the first enemy contact to remove exactly one heart.");
+            Assert.That(Vector2.Distance(player.transform.position, respawnObject.transform.position), Is.GreaterThan(0.5f),
+                "Expected a non-lethal enemy hit to leave the player in the encounter area.");
+
+            playerBody.linearVelocity = Vector2.zero;
+            player.transform.position = respawnObject.transform.position;
+            Physics2D.SyncTransforms();
+            yield return new WaitForSeconds(playerHealth.InvulnerabilityDuration + 0.05f);
+
+            while (playerHealth.CurrentHealth > 1)
+            {
+                Assert.That(gameManager.DamagePlayer(player, damageSource: damageSource), Is.True);
+                yield return null;
+                Assert.That(playerHealth.CurrentHealth, Is.GreaterThanOrEqualTo(1));
+                yield return new WaitForSeconds(playerHealth.InvulnerabilityDuration + 0.05f);
+            }
+
+            yield return new WaitForSeconds(playerHealth.InvulnerabilityDuration + 0.05f);
+            Assert.That(gameManager.DamagePlayer(player, damageSource: damageSource), Is.True);
+            yield return null;
+
+            Assert.That(playerHealth.CurrentHealth, Is.EqualTo(playerHealth.MaxHealth),
+                "Expected respawning after the last heart is lost to refill health.");
             Assert.That(player.transform.position.x, Is.EqualTo(respawnObject.transform.position.x).Within(0.05f));
             Assert.That(player.transform.position.y, Is.EqualTo(respawnObject.transform.position.y).Within(0.05f));
+        }
+
+        [UnityTest]
+        public IEnumerator HoveringEnemyMovesAlongItsPath()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            HoveringEnemy2D hoveringEnemy = Object.FindAnyObjectByType<HoveringEnemy2D>();
+
+            Assert.That(hoveringEnemy, Is.Not.Null);
+
+            Vector3 initialPosition = hoveringEnemy.transform.position;
+
+            for (int index = 0; index < 60; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(hoveringEnemy.transform.position.x, Is.GreaterThan(initialPosition.x + 0.2f),
+                "Expected the hovering enemy to travel along its horizontal path.");
+            Assert.That(Mathf.Abs(hoveringEnemy.transform.position.y - initialPosition.y), Is.LessThan(0.1f),
+                "Expected the hovering enemy to keep a readable hover height instead of diving at the player.");
         }
 
         [UnityTest]

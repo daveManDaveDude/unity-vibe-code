@@ -14,6 +14,7 @@ public static class StarterSceneBuilder
     private const string MovingPlatformPrefabPath = "Assets/Prefabs/Gameplay/MovingPlatform.prefab";
     private const string CyclingSpikeHazardPrefabPath = "Assets/Prefabs/Gameplay/CyclingSpikeHazard.prefab";
     private const string PatrollingEnemyPrefabPath = "Assets/Prefabs/Enemies/PatrollingEnemy.prefab";
+    private const string HoveringEnemyPrefabPath = "Assets/Prefabs/Enemies/HoveringEnemy.prefab";
 
     private static readonly Vector2 PlayerSize = new Vector2(0.225f, 0.45f);
     private static readonly Vector2 PatrollingEnemySize = new Vector2(0.45f, 0.35f);
@@ -41,16 +42,23 @@ public static class StarterSceneBuilder
         GameObject movingPlatformPrefab = EnsureMovingPlatformPrefab(placeholderSprite);
         GameObject timedHazardPrefab = EnsureCyclingSpikeHazardPrefab(placeholderSprite);
         GameObject patrollingEnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PatrollingEnemyPrefabPath);
+        GameObject hoveringEnemyPrefab = EnsureHoveringEnemyPrefab(placeholderSprite);
         if (patrollingEnemyPrefab == null)
         {
             Debug.LogError($"Could not load patrolling enemy prefab at '{PatrollingEnemyPrefabPath}'.");
             return;
         }
 
+        if (hoveringEnemyPrefab == null)
+        {
+            Debug.LogError($"Could not load hovering enemy prefab at '{HoveringEnemyPrefabPath}'.");
+            return;
+        }
+
         GameObject player = CreateOrUpdatePlayer(placeholderSprite, inputActions);
         GravityGardenGameManager gameManager = CreateOrUpdateGameplay(player);
         CreateOrUpdateLevel(placeholderSprite);
-        CreateOrUpdateSliceObjects(placeholderSprite, gameManager, movingPlatformPrefab, timedHazardPrefab, patrollingEnemyPrefab);
+        CreateOrUpdateSliceObjects(placeholderSprite, gameManager, movingPlatformPrefab, timedHazardPrefab, patrollingEnemyPrefab, hoveringEnemyPrefab);
         ConfigureCamera(player.transform);
         EnsureBuildSettings();
 
@@ -59,7 +67,7 @@ public static class StarterSceneBuilder
         AssetDatabase.SaveAssets();
 
         Selection.activeGameObject = player;
-        Debug.Log("Gravity Garden slice rebuilt. Collect seeds, ride the moving platform, deal with the checkpoint critter, time the thorn bridge, open the portal gate, and reach the portal.");
+        Debug.Log("Gravity Garden slice rebuilt. Collect seeds, ride the moving platform, watch your hearts around the critters and thorn bridge, open the portal gate, and reach the portal.");
     }
 
     private static void EnsureFolders()
@@ -67,11 +75,13 @@ public static class StarterSceneBuilder
         EnsureFolder("Assets/Art");
         EnsureFolder("Assets/Art/Sprites");
         EnsureFolder("Assets/Prefabs");
+        EnsureFolder("Assets/Prefabs/Enemies");
         EnsureFolder("Assets/Prefabs/Gameplay");
         EnsureFolder("Assets/Scripts");
         EnsureFolder("Assets/Scripts/Editor");
         EnsureFolder("Assets/Scripts/Runtime");
         EnsureFolder("Assets/Scripts/Runtime/Camera");
+        EnsureFolder("Assets/Scripts/Runtime/Enemies");
         EnsureFolder("Assets/Scripts/Runtime/Gameplay");
         EnsureFolder("Assets/Scripts/Runtime/Player");
     }
@@ -192,6 +202,9 @@ public static class StarterSceneBuilder
         controller.Configure(body, bodyCollider, groundCheck, inputActions, 1 << 0);
         ConfigurePlayerController(controller);
 
+        PlayerHealth2D health = GetOrAddComponent<PlayerHealth2D>(player);
+        ConfigurePlayerHealth(health, controller, body, player.GetComponentsInChildren<SpriteRenderer>(true));
+
         return player;
     }
 
@@ -222,6 +235,7 @@ public static class StarterSceneBuilder
         CreateOrUpdatePlatform(terrainRoot, "Mid Ground", sprite, new Vector2(4.9f, GroundY), new Vector2(4.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Hazard Wait Perch", sprite, new Vector2(8.4f, -1.35f), new Vector2(1.4f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Hazard Bridge", sprite, new Vector2(10.45f, GroundY), new Vector2(2.4f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Thorn Canopy", sprite, new Vector2(10.475f, -1.16f), new Vector2(2.35f, 0.24f), new Color(0.21f, 0.42f, 0.28f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Landing Perch", sprite, new Vector2(12.65f, -1.35f), new Vector2(1.6f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Final Ground", sprite, new Vector2(16.2f, GroundY), new Vector2(6.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
         CreateOrUpdatePlatform(terrainRoot, "Final Step", sprite, new Vector2(14.25f, -0.85f), new Vector2(1.7f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
@@ -236,7 +250,8 @@ public static class StarterSceneBuilder
         GravityGardenGameManager gameManager,
         GameObject movingPlatformPrefab,
         GameObject timedHazardPrefab,
-        GameObject patrollingEnemyPrefab)
+        GameObject patrollingEnemyPrefab,
+        GameObject hoveringEnemyPrefab)
     {
         GameObject sliceObjectsRoot = FindOrCreateRoot("Slice Objects");
         Transform markersRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Markers").transform;
@@ -252,6 +267,7 @@ public static class StarterSceneBuilder
         CreateOrUpdateGatePuzzle(puzzlesRoot, sprite);
         CreateOrUpdateMovingPlatform(traversalRoot, movingPlatformPrefab);
         CreateOrUpdatePatrollingEnemy(hazardsRoot, patrollingEnemyPrefab, sprite);
+        CreateOrUpdateHoveringEnemy(hazardsRoot, hoveringEnemyPrefab);
         CreateOrUpdateHazard(hazardsRoot, timedHazardPrefab, gameManager);
         CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
     }
@@ -343,6 +359,67 @@ public static class StarterSceneBuilder
         return AssetDatabase.LoadAssetAtPath<GameObject>(CyclingSpikeHazardPrefabPath);
     }
 
+    private static GameObject EnsureHoveringEnemyPrefab(Sprite sprite)
+    {
+        GameObject enemyRoot = new GameObject("Hovering Enemy");
+
+        try
+        {
+            SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(enemyRoot);
+            renderer.sprite = sprite;
+            renderer.color = new Color(0.41f, 0.82f, 0.77f, 1f);
+            renderer.sortingOrder = 6;
+            renderer.drawMode = SpriteDrawMode.Sliced;
+            renderer.size = new Vector2(0.48f, 0.32f);
+
+            Rigidbody2D body = GetOrAddComponent<Rigidbody2D>(enemyRoot);
+            body.bodyType = RigidbodyType2D.Kinematic;
+            body.gravityScale = 0f;
+            body.freezeRotation = true;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
+            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+            BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(enemyRoot);
+            collider.size = new Vector2(0.48f, 0.32f);
+            collider.offset = Vector2.zero;
+            collider.isTrigger = false;
+
+            Transform pathRoot = FindOrCreateChild(enemyRoot.transform, "Path").transform;
+            EnsureChildMarker(pathRoot, "Point A", Vector3.zero);
+            EnsureChildMarker(pathRoot, "Point B", new Vector3(2.2f, 0f, 0f));
+
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Wing Left", sprite, new Vector3(-0.21f, 0.02f, 0f), new Vector3(0.16f, 0.09f, 1f), new Color(0.7f, 0.94f, 0.98f, 0.95f), 5, 18f);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Wing Right", sprite, new Vector3(0.21f, 0.02f, 0f), new Vector3(0.16f, 0.09f, 1f), new Color(0.7f, 0.94f, 0.98f, 0.95f), 5, -18f);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Eye Left", sprite, new Vector3(-0.08f, 0.05f, 0f), new Vector3(0.05f, 0.05f, 1f), new Color(1f, 0.97f, 0.82f, 1f), 7);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Eye Right", sprite, new Vector3(0.08f, 0.05f, 0f), new Vector3(0.05f, 0.05f, 1f), new Color(1f, 0.97f, 0.82f, 1f), 7);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Petal Left", sprite, new Vector3(-0.16f, 0.18f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.85f, 0.35f, 1f), 6, 45f);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Petal Mid", sprite, new Vector3(0f, 0.21f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.85f, 0.35f, 1f), 6, 45f);
+            CreateOrUpdateVisualChild(enemyRoot.transform, "Petal Right", sprite, new Vector3(0.16f, 0.18f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.85f, 0.35f, 1f), 6, 45f);
+
+            Enemy2D enemy = GetOrAddComponent<Enemy2D>(enemyRoot);
+            HoveringEnemy2D hoveringEnemy = GetOrAddComponent<HoveringEnemy2D>(enemyRoot);
+            ConfigureEnemyBase(
+                enemy,
+                null,
+                body,
+                collider,
+                renderer,
+                true,
+                "The garden glider brushed past you.",
+                "Too many glider bumps. Back to the checkpoint.");
+            ConfigureHoveringEnemy(hoveringEnemy, enemy, body, pathRoot, 1.2f, 0.45f, 0.03f, true);
+
+            PrefabUtility.SaveAsPrefabAsset(enemyRoot, HoveringEnemyPrefabPath);
+            AssetDatabase.SaveAssets();
+        }
+        finally
+        {
+            Object.DestroyImmediate(enemyRoot);
+        }
+
+        return AssetDatabase.LoadAssetAtPath<GameObject>(HoveringEnemyPrefabPath);
+    }
+
     private static void CreateOrUpdateMovingPlatform(Transform parent, GameObject movingPlatformPrefab)
     {
         GameObject platform = InstantiatePrefabChild(parent, "Bridge Platform", movingPlatformPrefab);
@@ -395,6 +472,38 @@ public static class StarterSceneBuilder
         CreateOrUpdatePatrollingEnemyDisplay(enemy.transform, sprite);
         CreateOrUpdatePatrollingEnemyStop(parent, "Checkpoint Critter Left Stop", new Vector3(3.2f, -2.42f, 0f), new Vector2(0.08f, 0.8f));
         CreateOrUpdatePatrollingEnemyStop(parent, "Checkpoint Critter Right Stop", new Vector3(5.35f, -2.42f, 0f), new Vector2(0.08f, 0.8f));
+    }
+
+    private static void CreateOrUpdateHoveringEnemy(Transform parent, GameObject hoveringEnemyPrefab)
+    {
+        GameObject enemy = InstantiatePrefabChild(parent, "Garden Glider", hoveringEnemyPrefab);
+        enemy.transform.position = new Vector3(13.9f, -1.28f, 0f);
+        enemy.transform.rotation = Quaternion.identity;
+        enemy.transform.localScale = Vector3.one;
+
+        Transform pathRoot = enemy.transform.Find("Path");
+        if (pathRoot != null)
+        {
+            EnsureChildMarker(pathRoot, "Point A", Vector3.zero);
+            EnsureChildMarker(pathRoot, "Point B", new Vector3(2.2f, 0f, 0f));
+        }
+
+        Enemy2D enemyBase = enemy.GetComponent<Enemy2D>();
+        HoveringEnemy2D hoveringEnemy = enemy.GetComponent<HoveringEnemy2D>();
+        Rigidbody2D body = enemy.GetComponent<Rigidbody2D>();
+        Collider2D collider = enemy.GetComponent<Collider2D>();
+        SpriteRenderer renderer = enemy.GetComponent<SpriteRenderer>();
+
+        ConfigureEnemyBase(
+            enemyBase,
+            null,
+            body,
+            collider,
+            renderer,
+            true,
+            "The garden glider brushed past you.",
+            "Too many glider bumps. Back to the checkpoint.");
+        ConfigureHoveringEnemy(hoveringEnemy, enemyBase, body, pathRoot, 1.2f, 0.45f, 0.03f, true);
     }
 
     private static void CreateOrUpdateStartMarker(Transform parent, Sprite sprite)
@@ -749,6 +858,28 @@ public static class StarterSceneBuilder
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    private static void ConfigurePlayerHealth(PlayerHealth2D health, PlayerController2D controller, Rigidbody2D body, SpriteRenderer[] renderers)
+    {
+        SerializedObject serializedObject = new SerializedObject(health);
+        serializedObject.FindProperty("playerController").objectReferenceValue = controller;
+        serializedObject.FindProperty("body").objectReferenceValue = body;
+        serializedObject.FindProperty("maxHealth").intValue = 3;
+        serializedObject.FindProperty("invulnerabilityDuration").floatValue = 1f;
+        serializedObject.FindProperty("horizontalKnockbackSpeed").floatValue = 4.25f;
+        serializedObject.FindProperty("verticalKnockbackSpeed").floatValue = 5.75f;
+        serializedObject.FindProperty("blinkInterval").floatValue = 0.1f;
+
+        SerializedProperty renderersProperty = serializedObject.FindProperty("flashRenderers");
+        renderersProperty.arraySize = renderers != null ? renderers.Length : 0;
+
+        for (int index = 0; renderers != null && index < renderers.Length; index++)
+        {
+            renderersProperty.GetArrayElementAtIndex(index).objectReferenceValue = renderers[index];
+        }
+
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
     private static void ConfigureGameManager(GravityGardenGameManager gameManager, PlayerController2D player, Transform respawnPoint, int minimumSeedsToExit)
     {
         SerializedObject serializedObject = new SerializedObject(gameManager);
@@ -886,6 +1017,32 @@ public static class StarterSceneBuilder
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    private static void ConfigureEnemyBase(
+        Enemy2D enemy,
+        GravityGardenGameManager gameManager,
+        Rigidbody2D body,
+        Collider2D bodyCollider,
+        SpriteRenderer spriteRenderer,
+        bool canBeStomped,
+        string damagePlayerMessage,
+        string defeatPlayerMessage)
+    {
+        if (enemy == null)
+        {
+            return;
+        }
+
+        SerializedObject serializedObject = new SerializedObject(enemy);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("body").objectReferenceValue = body;
+        serializedObject.FindProperty("bodyCollider").objectReferenceValue = bodyCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = spriteRenderer;
+        serializedObject.FindProperty("canBeStomped").boolValue = canBeStomped;
+        serializedObject.FindProperty("damagePlayerMessage").stringValue = damagePlayerMessage;
+        serializedObject.FindProperty("defeatPlayerMessage").stringValue = defeatPlayerMessage;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
     private static void ConfigurePatrollingEnemy(
         PatrollingEnemy2D patrollingEnemy,
         LayerMask blockerLayers,
@@ -901,6 +1058,32 @@ public static class StarterSceneBuilder
         serializedObject.FindProperty("blockerLayers").intValue = blockerLayers;
         serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
         serializedObject.FindProperty("startFacingRight").boolValue = startFacingRight;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureHoveringEnemy(
+        HoveringEnemy2D hoveringEnemy,
+        Enemy2D enemy,
+        Rigidbody2D body,
+        Transform pathRoot,
+        float moveSpeed,
+        float waitDurationAtPoint,
+        float pointReachDistance,
+        bool pingPong)
+    {
+        if (hoveringEnemy == null)
+        {
+            return;
+        }
+
+        SerializedObject serializedObject = new SerializedObject(hoveringEnemy);
+        serializedObject.FindProperty("enemy").objectReferenceValue = enemy;
+        serializedObject.FindProperty("body").objectReferenceValue = body;
+        serializedObject.FindProperty("pathRoot").objectReferenceValue = pathRoot;
+        serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
+        serializedObject.FindProperty("waitDurationAtPoint").floatValue = waitDurationAtPoint;
+        serializedObject.FindProperty("pointReachDistance").floatValue = pointReachDistance;
+        serializedObject.FindProperty("pingPong").boolValue = pingPong;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 

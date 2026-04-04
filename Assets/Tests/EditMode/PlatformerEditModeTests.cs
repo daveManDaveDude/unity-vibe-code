@@ -47,6 +47,29 @@ namespace VibeCode.Tests.EditMode
         }
 
         [Test]
+        public void PlayerHealthDefaultsToThreeHits()
+        {
+            var player = new GameObject("Player Under Test");
+
+            try
+            {
+                player.AddComponent<Rigidbody2D>();
+                player.AddComponent<CapsuleCollider2D>();
+                player.AddComponent<PlayerController2D>();
+
+                PlayerHealth2D health = player.AddComponent<PlayerHealth2D>();
+                SerializedObject serializedObject = new SerializedObject(health);
+
+                Assert.That(serializedObject.FindProperty("maxHealth").intValue, Is.EqualTo(3));
+                Assert.That(health.CurrentHealth, Is.EqualTo(3));
+            }
+            finally
+            {
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
         public void GroundCheckIgnoresPlayerOwnCollider()
         {
             var player = new GameObject("Player Under Test");
@@ -235,6 +258,16 @@ namespace VibeCode.Tests.EditMode
         }
 
         [Test]
+        public void HoveringEnemyPrefabExists()
+        {
+            GameObject enemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Enemies/HoveringEnemy.prefab");
+
+            Assert.That(enemyPrefab, Is.Not.Null, "Expected a reusable hovering enemy prefab to exist.");
+            Assert.That(enemyPrefab.GetComponent<Enemy2D>(), Is.Not.Null, "Expected the prefab to include the reusable enemy interaction component.");
+            Assert.That(enemyPrefab.GetComponent<HoveringEnemy2D>(), Is.Not.Null, "Expected the prefab to include the hovering movement component.");
+        }
+
+        [Test]
         public void DesktopWindowSizingUsesSeventyPercentOfScreenResolution()
         {
             Vector2Int target = DesktopWindowSizing.CalculateWindowSize(1920, 1080);
@@ -275,6 +308,36 @@ namespace VibeCode.Tests.EditMode
             {
                 Object.DestroyImmediate(checkpointObject);
                 Object.DestroyImmediate(defaultRespawnObject);
+                Object.DestroyImmediate(playerObject);
+                Object.DestroyImmediate(managerObject);
+            }
+        }
+
+        [Test]
+        public void DamagePlayerIgnoresRepeatHitsWhileInvulnerable()
+        {
+            var managerObject = new GameObject("Game Manager");
+            var playerObject = new GameObject("Player Under Test");
+            var respawnObject = new GameObject("Respawn");
+
+            try
+            {
+                GravityGardenGameManager gameManager = managerObject.AddComponent<GravityGardenGameManager>();
+                playerObject.AddComponent<Rigidbody2D>();
+                playerObject.AddComponent<CapsuleCollider2D>();
+                PlayerController2D player = playerObject.AddComponent<PlayerController2D>();
+                PlayerHealth2D health = playerObject.AddComponent<PlayerHealth2D>();
+
+                gameManager.Configure(player, respawnObject.transform, 3);
+
+                Assert.That(gameManager.DamagePlayer(player, damageSource: Vector2.left), Is.True);
+                Assert.That(health.CurrentHealth, Is.EqualTo(2));
+                Assert.That(gameManager.DamagePlayer(player, damageSource: Vector2.left), Is.False);
+                Assert.That(health.CurrentHealth, Is.EqualTo(2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(respawnObject);
                 Object.DestroyImmediate(playerObject);
                 Object.DestroyImmediate(managerObject);
             }

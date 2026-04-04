@@ -70,6 +70,22 @@ namespace VibeCode.Tests.EditMode
         }
 
         [Test]
+        public void MainSceneContainsHoveringEnemyEncounter()
+        {
+            Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/Main.unity", OpenSceneMode.Single);
+
+            Assert.That(scene.IsValid() && scene.isLoaded, Is.True, "Expected the Main scene to open for slice validation.");
+
+            HoveringEnemy2D hoveringEnemy = Object.FindAnyObjectByType<HoveringEnemy2D>();
+
+            Assert.That(hoveringEnemy, Is.Not.Null, "Expected the Main scene to contain the hovering enemy encounter.");
+            Assert.That(hoveringEnemy.GetComponent<Enemy2D>(), Is.Not.Null,
+                "Expected the hovering enemy encounter to use the shared enemy interaction component.");
+            Assert.That(hoveringEnemy.GetComponentsInChildren<SpriteRenderer>(true), Is.Not.Empty,
+                "Expected the hovering enemy encounter to expose visible placeholder art.");
+        }
+
+        [Test]
         public void MainSceneContainsGatePuzzleWiring()
         {
             Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/Main.unity", OpenSceneMode.Single);

@@ -35,7 +35,8 @@ namespace VibeCode.Platformer
         [SerializeField] private float visualLerpSpeed = 12f;
 
         [Header("Player Interaction")]
-        [SerializeField] private string defeatPlayerMessage = "The thorn patch snapped shut.";
+        [SerializeField] private string damagePlayerMessage = "The thorn patch poked you.";
+        [SerializeField] private string defeatPlayerMessage = "Too many thorn pokes. Back to safety.";
 
         private SpriteRenderer[] hazardRenderers = System.Array.Empty<SpriteRenderer>();
         private readonly Collider2D[] overlapHits = new Collider2D[4];
@@ -126,7 +127,7 @@ namespace VibeCode.Platformer
             }
 
             ResolveGameManager();
-            gameManager?.RespawnPlayer(player, defeatPlayerMessage);
+            gameManager?.DamagePlayer(player, damagePlayerMessage, defeatPlayerMessage, transform.position);
         }
 
         private void CacheHazardRenderers()
@@ -279,7 +280,7 @@ namespace VibeCode.Platformer
                 }
 
                 ResolveGameManager();
-                gameManager?.RespawnPlayer(player, defeatPlayerMessage);
+                gameManager?.DamagePlayer(player, damagePlayerMessage, defeatPlayerMessage, transform.position);
                 return;
             }
         }

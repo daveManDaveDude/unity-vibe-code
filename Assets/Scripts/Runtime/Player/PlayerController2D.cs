@@ -267,6 +267,23 @@ namespace VibeCode.Platformer
             jumpQueued = false;
         }
 
+        public void ApplyExternalImpulse(Vector2 velocity)
+        {
+            if (body == null)
+            {
+                return;
+            }
+
+            CancelLedgeAssist();
+            Vector2 currentVelocity = body.linearVelocity;
+            currentVelocity.x = velocity.x;
+            currentVelocity.y = Mathf.Max(currentVelocity.y, velocity.y);
+            body.linearVelocity = currentVelocity;
+            body.gravityScale = defaultGravityScale;
+            IsGrounded = false;
+            jumpQueued = false;
+        }
+
         private void BindActions()
         {
             if (inputActions == null)

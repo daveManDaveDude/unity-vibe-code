@@ -19,7 +19,8 @@ namespace VibeCode.Platformer
         [SerializeField] private float stompBounceVelocity = 8.5f;
         [SerializeField] private float stompMinFallSpeed = 0.1f;
         [SerializeField] private float stompContactPadding = 0.08f;
-        [SerializeField] private string defeatPlayerMessage = "A garden critter got you.";
+        [SerializeField] private string damagePlayerMessage = "The garden critter bonked you.";
+        [SerializeField] private string defeatPlayerMessage = "Too many critter bonks. Back to the checkpoint.";
 
         [Header("Placeholder Effects")]
         [SerializeField] private bool spawnDefeatBurst = true;
@@ -108,7 +109,7 @@ namespace VibeCode.Platformer
             }
 
             ResolveGameManager();
-            gameManager?.DefeatPlayer(player, defeatPlayerMessage);
+            gameManager?.DamagePlayer(player, damagePlayerMessage, defeatPlayerMessage, transform.position);
         }
 
         public void SetFacingDirection(float direction)
