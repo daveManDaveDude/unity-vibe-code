@@ -39,7 +39,7 @@ namespace VibeCode.Platformer
             }
 
             collectedSeeds.Clear();
-            TotalSeedsInLevel = FindObjectsByType<EnergySeedCollectible>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length;
+            TotalSeedsInLevel = FindObjectsByType<EnergySeedCollectible>(FindObjectsInactive.Exclude).Length;
             NotifyStateChanged();
         }
 
@@ -125,6 +125,7 @@ namespace VibeCode.Platformer
             }
 
             player = resolvedPlayer;
+            resolvedPlayer.transform.SetParent(null, true);
 
             Rigidbody2D body = resolvedPlayer.GetComponent<Rigidbody2D>();
             if (body != null)

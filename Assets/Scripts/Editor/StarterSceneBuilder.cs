@@ -11,22 +11,21 @@ public static class StarterSceneBuilder
     private const string MainScenePath = "Assets/Scenes/Main.unity";
     private const string InputActionsPath = "Assets/InputSystem_Actions.inputactions";
     private const string PlaceholderSpritePath = "Assets/Art/Sprites/PlaceholderSquare.png";
-    private const string EnemyPrefabPath = "Assets/Prefabs/Enemies/PatrollingEnemy.prefab";
+    private const string MovingPlatformPrefabPath = "Assets/Prefabs/Gameplay/MovingPlatform.prefab";
+    private const string CyclingSpikeHazardPrefabPath = "Assets/Prefabs/Gameplay/CyclingSpikeHazard.prefab";
+
     private static readonly Vector2 PlayerSize = new Vector2(0.225f, 0.45f);
-    private static readonly Vector2 EnemySize = new Vector2(0.45f, 0.35f);
+    private static readonly Vector2 StaticPlatformThickness = new Vector2(1f, 0.1875f);
+    private static readonly float GroundY = -2.75f;
     private static readonly float PlayerGroundedY = -2.3375f;
-    private static readonly Vector2 PlatformSize = new Vector2(1f, 0.1875f);
 
     [MenuItem("Vibe/Build Platformer Starter Scene")]
     public static void BuildPlatformerStarterScene()
     {
         EnsureFolders();
         Sprite placeholderSprite = EnsurePlaceholderSprite();
-        Scene scene = EditorSceneManager.GetActiveScene();
-        if (!scene.IsValid())
-        {
-            scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        }
+
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         InputActionAsset inputActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath);
         if (inputActions == null)
@@ -35,10 +34,13 @@ public static class StarterSceneBuilder
             return;
         }
 
-        GameObject enemyPrefab = EnsurePatrollingEnemyPrefab(placeholderSprite);
+        GameObject movingPlatformPrefab = EnsureMovingPlatformPrefab(placeholderSprite);
+        GameObject timedHazardPrefab = EnsureCyclingSpikeHazardPrefab(placeholderSprite);
+
         GameObject player = CreateOrUpdatePlayer(placeholderSprite, inputActions);
+        GravityGardenGameManager gameManager = CreateOrUpdateGameplay(player);
         CreateOrUpdateLevel(placeholderSprite);
-        CreateOrUpdateGameplay(player, placeholderSprite, enemyPrefab);
+        CreateOrUpdateSliceObjects(placeholderSprite, gameManager, movingPlatformPrefab, timedHazardPrefab);
         ConfigureCamera(player.transform);
         EnsureBuildSettings();
 
@@ -47,7 +49,7 @@ public static class StarterSceneBuilder
         AssetDatabase.SaveAssets();
 
         Selection.activeGameObject = player;
-        Debug.Log("Gravity Garden slice created. Press Play to collect seeds, avoid the fall zone, and reach the portal.");
+        Debug.Log("Gravity Garden slice rebuilt. Collect seeds, ride the moving platform, time the thorn bridge, and reach the portal.");
     }
 
     private static void EnsureFolders()
@@ -55,12 +57,11 @@ public static class StarterSceneBuilder
         EnsureFolder("Assets/Art");
         EnsureFolder("Assets/Art/Sprites");
         EnsureFolder("Assets/Prefabs");
-        EnsureFolder("Assets/Prefabs/Enemies");
+        EnsureFolder("Assets/Prefabs/Gameplay");
         EnsureFolder("Assets/Scripts");
         EnsureFolder("Assets/Scripts/Editor");
         EnsureFolder("Assets/Scripts/Runtime");
         EnsureFolder("Assets/Scripts/Runtime/Camera");
-        EnsureFolder("Assets/Scripts/Runtime/Enemies");
         EnsureFolder("Assets/Scripts/Runtime/Gameplay");
         EnsureFolder("Assets/Scripts/Runtime/Player");
     }
@@ -85,7 +86,8 @@ public static class StarterSceneBuilder
 
     private static Sprite EnsurePlaceholderSprite()
     {
-        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderSpritePath);
+        ConfigurePlaceholderSpriteImporter();
+        Sprite sprite = LoadPlaceholderSpriteSubAsset();
         if (sprite != null)
         {
             return sprite;
@@ -105,126 +107,50 @@ public static class StarterSceneBuilder
         Object.DestroyImmediate(texture);
 
         AssetDatabase.ImportAsset(PlaceholderSpritePath, ImportAssetOptions.ForceUpdate);
-        TextureImporter importer = AssetImporter.GetAtPath(PlaceholderSpritePath) as TextureImporter;
-        if (importer != null)
+        ConfigurePlaceholderSpriteImporter();
+
+        return LoadPlaceholderSpriteSubAsset();
+    }
+
+    private static void ConfigurePlaceholderSpriteImporter()
+    {
+        if (AssetImporter.GetAtPath(PlaceholderSpritePath) is not TextureImporter importer)
         {
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spritePixelsPerUnit = 32f;
-            importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.alphaIsTransparency = true;
-            importer.SaveAndReimport();
+            return;
         }
 
-        return AssetDatabase.LoadAssetAtPath<Sprite>(PlaceholderSpritePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spritePixelsPerUnit = 32f;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Point;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.alphaIsTransparency = true;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        TextureImporterSettings settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        importer.SetTextureSettings(settings);
+        importer.SaveAndReimport();
+    }
+
+    private static Sprite LoadPlaceholderSpriteSubAsset()
+    {
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath(PlaceholderSpritePath);
+        for (int index = 0; index < assets.Length; index++)
+        {
+            if (assets[index] is Sprite sprite)
+            {
+                return sprite;
+            }
+        }
+
+        return null;
     }
 
     private static string ToAbsoluteAssetPath(string assetPath)
     {
         string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath;
         return Path.Combine(projectRoot, assetPath);
-    }
-
-    private static void CreateOrUpdateLevel(Sprite sprite)
-    {
-        GameObject levelRoot = FindOrCreateRoot("Level");
-        CreateOrUpdatePlatform(levelRoot.transform, "Ground", sprite, new Vector2(-7f, -2.75f), new Vector2(22f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Ground Far Side", sprite, new Vector2(19f, -2.75f), new Vector2(16f, 0.375f), new Color(0.16f, 0.22f, 0.33f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform A", sprite, new Vector2(-10.4f, -1.95f), new Vector2(2.6f, PlatformSize.y), new Color(0.24f, 0.43f, 0.66f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform B", sprite, new Vector2(-6.6f, -1.2f), new Vector2(1.9f, PlatformSize.y), new Color(0.31f, 0.49f, 0.71f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform C", sprite, new Vector2(-2.2f, -0.45f), new Vector2(2.9f, PlatformSize.y), new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform D", sprite, new Vector2(2.1f, -0.85f), new Vector2(1.7f, PlatformSize.y), new Color(0.34f, 0.48f, 0.7f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform E", sprite, new Vector2(6.6f, 0f), new Vector2(2.4f, PlatformSize.y), new Color(0.27f, 0.45f, 0.65f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform F", sprite, new Vector2(11.05f, 0.75f), new Vector2(1.9f, PlatformSize.y), new Color(0.3f, 0.44f, 0.67f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform G", sprite, new Vector2(15.85f, 0.15f), new Vector2(2.8f, PlatformSize.y), new Color(0.29f, 0.47f, 0.68f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Platform H", sprite, new Vector2(20.7f, 1.1f), new Vector2(2f, PlatformSize.y), new Color(0.34f, 0.52f, 0.72f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Gate Puzzle Roof", sprite, new Vector2(24.3f, -0.65f), new Vector2(4.3f, PlatformSize.y), new Color(0.17f, 0.24f, 0.36f));
-        CreateOrUpdatePlatform(levelRoot.transform, "Gate Puzzle Wall", sprite, new Vector2(26.35f, -1.55f), new Vector2(0.35f, 2.2f), new Color(0.17f, 0.24f, 0.36f));
-    }
-
-    private static void CreateOrUpdateGameplay(GameObject player, Sprite sprite, GameObject enemyPrefab)
-    {
-        GameObject gameplayRoot = FindOrCreateRoot("Gameplay");
-        Transform respawnPoint = EnsureRespawnPoint(gameplayRoot.transform);
-        PlayerController2D playerController = player.GetComponent<PlayerController2D>();
-
-        GravityGardenGameManager gameManager = GetOrAddComponent<GravityGardenGameManager>(gameplayRoot);
-        ConfigureGameManager(gameManager, playerController, respawnPoint, 3);
-
-        GravityGardenHud hud = GetOrAddComponent<GravityGardenHud>(gameplayRoot);
-        ConfigureHud(hud, gameManager);
-
-        GameObject sliceObjectsRoot = FindOrCreateRoot("Slice Objects");
-        CreateOrUpdateStartMarker(sliceObjectsRoot.transform, sprite);
-        CreateOrUpdateCheckpoint(sliceObjectsRoot.transform, sprite, gameManager);
-        CreateOrUpdateExitPortal(sliceObjectsRoot.transform, sprite, gameManager);
-        CreateOrUpdateGatePuzzle(sliceObjectsRoot.transform, sprite);
-        CreateOrUpdateSeeds(sliceObjectsRoot.transform, sprite, gameManager);
-        CreateOrUpdateEnemies(sliceObjectsRoot.transform, sprite, enemyPrefab);
-        CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
-    }
-
-    private static GameObject EnsurePatrollingEnemyPrefab(Sprite sprite)
-    {
-        GameObject enemyRoot = new GameObject("Patrolling Enemy");
-
-        try
-        {
-            SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(enemyRoot);
-            renderer.sprite = sprite;
-            renderer.color = new Color(0.76f, 0.19f, 0.17f, 1f);
-            renderer.sortingOrder = 4;
-            renderer.drawMode = SpriteDrawMode.Sliced;
-            renderer.size = EnemySize;
-
-            Rigidbody2D body = GetOrAddComponent<Rigidbody2D>(enemyRoot);
-            body.gravityScale = 4f;
-            body.freezeRotation = true;
-            body.interpolation = RigidbodyInterpolation2D.Interpolate;
-            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
-            BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(enemyRoot);
-            collider.size = EnemySize;
-            collider.offset = Vector2.zero;
-
-            Enemy2D enemy = GetOrAddComponent<Enemy2D>(enemyRoot);
-            PatrollingEnemy2D patrol = GetOrAddComponent<PatrollingEnemy2D>(enemyRoot);
-
-            CreateOrUpdateEnemyVisuals(enemyRoot.transform, sprite);
-
-            Transform edgeCheck = EnsureChildMarker(enemyRoot.transform, "Edge Check", new Vector3(0.28f, -0.2f, 0f));
-            Transform wallCheck = EnsureChildMarker(enemyRoot.transform, "Wall Check", new Vector3(0.34f, -0.01f, 0f));
-
-            ConfigureEnemy(enemy, body, collider, renderer);
-            ConfigurePatrollingEnemy(patrol, enemy, body, collider, edgeCheck, wallCheck, 1 << 0);
-
-            PrefabUtility.SaveAsPrefabAsset(enemyRoot, EnemyPrefabPath);
-            AssetDatabase.SaveAssets();
-        }
-        finally
-        {
-            Object.DestroyImmediate(enemyRoot);
-        }
-
-        return AssetDatabase.LoadAssetAtPath<GameObject>(EnemyPrefabPath);
-    }
-
-    private static void CreateOrUpdatePlatform(Transform parent, string objectName, Sprite sprite, Vector2 position, Vector2 size, Color color)
-    {
-        GameObject platform = FindOrCreateChild(parent, objectName);
-        platform.transform.position = new Vector3(position.x, position.y, 0f);
-        platform.transform.localScale = new Vector3(size.x, size.y, 1f);
-
-        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(platform);
-        renderer.sprite = sprite;
-        renderer.color = color;
-        renderer.drawMode = SpriteDrawMode.Simple;
-        renderer.size = Vector2.one;
-
-        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(platform);
-        collider.size = Vector2.one;
-        collider.offset = Vector2.zero;
     }
 
     private static GameObject CreateOrUpdatePlayer(Sprite sprite, InputActionAsset inputActions)
@@ -235,7 +161,7 @@ public static class StarterSceneBuilder
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(player);
         renderer.sprite = sprite;
-        renderer.color = new Color(0.93f, 0.53f, 0.38f);
+        renderer.color = new Color(0.93f, 0.53f, 0.38f, 1f);
         renderer.sortingOrder = 5;
         renderer.drawMode = SpriteDrawMode.Sliced;
         renderer.size = PlayerSize;
@@ -259,53 +185,238 @@ public static class StarterSceneBuilder
         return player;
     }
 
-    private static Transform EnsureRespawnPoint(Transform parent)
+    private static GravityGardenGameManager CreateOrUpdateGameplay(GameObject player)
     {
-        GameObject respawnPoint = FindOrCreateChild(parent, "Respawn Point");
-        respawnPoint.transform.position = new Vector3(-12.5f, PlayerGroundedY, 0f);
-        respawnPoint.transform.localScale = Vector3.one;
-        return respawnPoint.transform;
+        GameObject gameplayRoot = FindOrCreateRoot("Gameplay");
+        Transform respawnPoint = EnsureRespawnPoint(gameplayRoot.transform);
+        PlayerController2D playerController = player.GetComponent<PlayerController2D>();
+
+        GravityGardenGameManager gameManager = GetOrAddComponent<GravityGardenGameManager>(gameplayRoot);
+        ConfigureGameManager(gameManager, playerController, respawnPoint, 5);
+
+        GravityGardenHud hud = GetOrAddComponent<GravityGardenHud>(gameplayRoot);
+        ConfigureHud(hud, gameManager);
+
+        return gameManager;
+    }
+
+    private static void CreateOrUpdateLevel(Sprite sprite)
+    {
+        GameObject levelRoot = FindOrCreateRoot("Level");
+        Transform terrainRoot = FindOrCreateChild(levelRoot.transform, "Terrain").transform;
+        Transform sceneryRoot = FindOrCreateChild(levelRoot.transform, "Scenery").transform;
+
+        CreateOrUpdatePlatform(terrainRoot, "Start Ground", sprite, new Vector2(-10.85f, GroundY), new Vector2(7.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Intro Platform", sprite, new Vector2(-7.9f, -1.7f), new Vector2(1.8f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Departure Ledge", sprite, new Vector2(-5.1f, -1.05f), new Vector2(1.6f, StaticPlatformThickness.y), new Color(0.19f, 0.32f, 0.38f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Mid Ground", sprite, new Vector2(4.9f, GroundY), new Vector2(4.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Hazard Wait Perch", sprite, new Vector2(8.4f, -1.35f), new Vector2(1.4f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Hazard Bridge", sprite, new Vector2(10.45f, GroundY), new Vector2(2.4f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Landing Perch", sprite, new Vector2(12.65f, -1.35f), new Vector2(1.6f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Final Ground", sprite, new Vector2(16.2f, GroundY), new Vector2(6.8f, 0.375f), new Color(0.11f, 0.15f, 0.22f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Final Step", sprite, new Vector2(14.25f, -0.85f), new Vector2(1.7f, StaticPlatformThickness.y), new Color(0.17f, 0.29f, 0.35f, 1f));
+        CreateOrUpdatePlatform(terrainRoot, "Portal Dais", sprite, new Vector2(18.65f, -2.45f), new Vector2(1.55f, 0.12f), new Color(0.25f, 0.34f, 0.23f, 1f));
+
+        CreateOrUpdateBackdrop(sceneryRoot, "Garden Backdrop", sprite, new Vector2(2.4f, -0.95f), new Vector2(39.2f, 6.8f), new Color(0.2f, 0.39f, 0.42f, 0.2f));
+        CreateOrUpdateBackdrop(sceneryRoot, "Abyss Fog", sprite, new Vector2(2.5f, -5.4f), new Vector2(46f, 3f), new Color(0.06f, 0.11f, 0.14f, 0.5f));
+    }
+
+    private static void CreateOrUpdateSliceObjects(Sprite sprite, GravityGardenGameManager gameManager, GameObject movingPlatformPrefab, GameObject timedHazardPrefab)
+    {
+        GameObject sliceObjectsRoot = FindOrCreateRoot("Slice Objects");
+        Transform markersRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Markers").transform;
+        Transform collectiblesRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Collectibles").transform;
+        Transform traversalRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Traversal").transform;
+        Transform hazardsRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Hazards").transform;
+
+        CreateOrUpdateStartMarker(markersRoot, sprite);
+        CreateOrUpdateCheckpoint(markersRoot, sprite, gameManager);
+        CreateOrUpdateExitPortal(markersRoot, sprite, gameManager);
+        CreateOrUpdateSeeds(collectiblesRoot, sprite, gameManager);
+        CreateOrUpdateMovingPlatform(traversalRoot, movingPlatformPrefab);
+        CreateOrUpdateHazard(hazardsRoot, timedHazardPrefab, gameManager);
+        CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
+    }
+
+    private static GameObject EnsureMovingPlatformPrefab(Sprite sprite)
+    {
+        GameObject platformRoot = new GameObject("Moving Platform");
+
+        try
+        {
+            SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(platformRoot);
+            renderer.sprite = sprite;
+            renderer.color = new Color(0.42f, 0.86f, 0.82f, 1f);
+            renderer.sortingOrder = 2;
+            renderer.drawMode = SpriteDrawMode.Sliced;
+            renderer.size = new Vector2(2.4f, 0.3f);
+
+            Rigidbody2D body = GetOrAddComponent<Rigidbody2D>(platformRoot);
+            body.bodyType = RigidbodyType2D.Kinematic;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
+            body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+            BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(platformRoot);
+            collider.size = new Vector2(2.4f, 0.3f);
+            collider.offset = Vector2.zero;
+            collider.isTrigger = false;
+
+            Transform pathRoot = FindOrCreateChild(platformRoot.transform, "Path").transform;
+            EnsureChildMarker(pathRoot, "Point A", Vector3.zero);
+            EnsureChildMarker(pathRoot, "Point B", new Vector3(4.65f, 0f, 0f));
+
+            MovingPlatform2D movingPlatform = GetOrAddComponent<MovingPlatform2D>(platformRoot);
+            ConfigureMovingPlatform(movingPlatform, body, collider, renderer, pathRoot, new Vector2(2.4f, 0.3f), 2.45f, 0.3f);
+
+            PrefabUtility.SaveAsPrefabAsset(platformRoot, MovingPlatformPrefabPath);
+            AssetDatabase.SaveAssets();
+        }
+        finally
+        {
+            Object.DestroyImmediate(platformRoot);
+        }
+
+        return AssetDatabase.LoadAssetAtPath<GameObject>(MovingPlatformPrefabPath);
+    }
+
+    private static GameObject EnsureCyclingSpikeHazardPrefab(Sprite sprite)
+    {
+        GameObject hazardRoot = new GameObject("Cycling Spike Hazard");
+
+        try
+        {
+            BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(hazardRoot);
+            collider.size = new Vector2(2.05f, 0.7f);
+            collider.offset = new Vector2(0f, 0.28f);
+            collider.isTrigger = true;
+
+            Transform visualsRoot = FindOrCreateChild(hazardRoot.transform, "Visuals").transform;
+            visualsRoot.localPosition = new Vector3(0f, 0.12f, 0f);
+            visualsRoot.localScale = Vector3.one;
+
+            CreateOrUpdateVisualChild(visualsRoot, "Base", sprite, new Vector3(0f, -0.14f, 0f), new Vector3(2.1f, 0.14f, 1f), new Color(0.35f, 0.71f, 0.52f, 1f), 3);
+            CreateOrUpdateVisualChild(visualsRoot, "Spike Left", sprite, new Vector3(-0.62f, 0.02f, 0f), new Vector3(0.34f, 0.34f, 1f), new Color(0.35f, 0.71f, 0.52f, 1f), 4, 45f);
+            CreateOrUpdateVisualChild(visualsRoot, "Spike Mid Left", sprite, new Vector3(-0.2f, 0.08f, 0f), new Vector3(0.34f, 0.34f, 1f), new Color(0.35f, 0.71f, 0.52f, 1f), 4, 45f);
+            CreateOrUpdateVisualChild(visualsRoot, "Spike Mid Right", sprite, new Vector3(0.2f, 0.08f, 0f), new Vector3(0.34f, 0.34f, 1f), new Color(0.35f, 0.71f, 0.52f, 1f), 4, 45f);
+            CreateOrUpdateVisualChild(visualsRoot, "Spike Right", sprite, new Vector3(0.62f, 0.02f, 0f), new Vector3(0.34f, 0.34f, 1f), new Color(0.35f, 0.71f, 0.52f, 1f), 4, 45f);
+
+            GameObject timingLight = FindOrCreateChild(hazardRoot.transform, "Timing Light");
+            timingLight.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+            timingLight.transform.localRotation = Quaternion.identity;
+            timingLight.transform.localScale = new Vector3(0.18f, 0.18f, 1f);
+
+            SpriteRenderer indicatorRenderer = GetOrAddComponent<SpriteRenderer>(timingLight);
+            indicatorRenderer.sprite = sprite;
+            indicatorRenderer.color = new Color(0.35f, 0.71f, 0.52f, 1f);
+            indicatorRenderer.sortingOrder = 5;
+            indicatorRenderer.drawMode = SpriteDrawMode.Simple;
+
+            CyclingSpikeHazard2D hazard = GetOrAddComponent<CyclingSpikeHazard2D>(hazardRoot);
+            ConfigureHazard(hazard, null, collider, visualsRoot, indicatorRenderer, 1.15f, 0.45f, 0.9f);
+
+            PrefabUtility.SaveAsPrefabAsset(hazardRoot, CyclingSpikeHazardPrefabPath);
+            AssetDatabase.SaveAssets();
+        }
+        finally
+        {
+            Object.DestroyImmediate(hazardRoot);
+        }
+
+        return AssetDatabase.LoadAssetAtPath<GameObject>(CyclingSpikeHazardPrefabPath);
+    }
+
+    private static void CreateOrUpdateMovingPlatform(Transform parent, GameObject movingPlatformPrefab)
+    {
+        GameObject platform = InstantiatePrefabChild(parent, "Bridge Platform", movingPlatformPrefab);
+        platform.transform.position = new Vector3(-3.35f, -2.02f, 0f);
+        platform.transform.rotation = Quaternion.identity;
+        platform.transform.localScale = Vector3.one;
+
+        Transform pathRoot = platform.transform.Find("Path");
+        if (pathRoot != null)
+        {
+            EnsureChildMarker(pathRoot, "Point A", Vector3.zero);
+            EnsureChildMarker(pathRoot, "Point B", new Vector3(4.65f, 0f, 0f));
+        }
+
+        MovingPlatform2D movingPlatform = platform.GetComponent<MovingPlatform2D>();
+        Rigidbody2D body = platform.GetComponent<Rigidbody2D>();
+        Collider2D collider = platform.GetComponent<Collider2D>();
+        SpriteRenderer renderer = platform.GetComponent<SpriteRenderer>();
+        ConfigureMovingPlatform(movingPlatform, body, collider, renderer, pathRoot, new Vector2(2.4f, 0.3f), 2.45f, 0.3f);
+
+        CreateOrUpdateStaticMarker(parent, "Bridge Dock Left", movingPlatformPrefab, new Vector3(-4.7f, -2.02f, 0f), new Vector2(0.3f, 0.6f), new Color(0.24f, 0.5f, 0.52f, 1f));
+        CreateOrUpdateStaticMarker(parent, "Bridge Dock Right", movingPlatformPrefab, new Vector3(2.65f, -2.02f, 0f), new Vector2(0.3f, 0.6f), new Color(0.24f, 0.5f, 0.52f, 1f));
+    }
+
+    private static void CreateOrUpdateHazard(Transform parent, GameObject timedHazardPrefab, GravityGardenGameManager gameManager)
+    {
+        GameObject hazard = InstantiatePrefabChild(parent, "Thorn Bridge", timedHazardPrefab);
+        hazard.transform.position = new Vector3(10.45f, -2.58f, 0f);
+        hazard.transform.rotation = Quaternion.identity;
+        hazard.transform.localScale = Vector3.one;
+
+        CyclingSpikeHazard2D hazardComponent = hazard.GetComponent<CyclingSpikeHazard2D>();
+        Collider2D collider = hazard.GetComponent<Collider2D>();
+        Transform visualsRoot = hazard.transform.Find("Visuals");
+        Transform indicator = hazard.transform.Find("Timing Light");
+        SpriteRenderer indicatorRenderer = indicator != null ? indicator.GetComponent<SpriteRenderer>() : null;
+        ConfigureHazard(hazardComponent, gameManager, collider, visualsRoot, indicatorRenderer, 1.15f, 0.45f, 0.9f);
     }
 
     private static void CreateOrUpdateStartMarker(Transform parent, Sprite sprite)
     {
         GameObject startMarker = FindOrCreateChild(parent, "Start Area");
-        startMarker.transform.position = new Vector3(-12.5f, -2.5f, 0f);
-        startMarker.transform.localScale = new Vector3(0.7f, 0.07f, 1f);
+        startMarker.transform.position = new Vector3(-12.4f, -2.58f, 0f);
+        startMarker.transform.localScale = Vector3.one;
 
-        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(startMarker);
-        renderer.sprite = sprite;
-        renderer.color = new Color(0.42f, 0.78f, 0.47f, 1f);
-        renderer.sortingOrder = 1;
-        renderer.drawMode = SpriteDrawMode.Simple;
+        CreateOrUpdateVisualChild(startMarker.transform, "Patch", sprite, Vector3.zero, new Vector3(1.8f, 0.08f, 1f), new Color(0.45f, 0.83f, 0.46f, 1f), 1);
+        CreateOrUpdateVisualChild(startMarker.transform, "Stem", sprite, new Vector3(-0.55f, 0.42f, 0f), new Vector3(0.08f, 0.7f, 1f), new Color(0.45f, 0.72f, 0.39f, 1f), 1);
+        CreateOrUpdateVisualChild(startMarker.transform, "Plate", sprite, new Vector3(-0.55f, 0.62f, 0f), new Vector3(0.45f, 0.12f, 1f), new Color(0.7f, 0.9f, 0.63f, 1f), 1);
     }
 
     private static void CreateOrUpdateCheckpoint(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
     {
-        GameObject checkpoint = FindOrCreateChild(parent, "Checkpoint 1");
-        checkpoint.transform.position = new Vector3(2.1f, -0.5625f, 0f);
-        checkpoint.transform.localScale = new Vector3(0.095f, 0.3875f, 1f);
+        GameObject checkpointRoot = FindOrCreateChild(parent, "Checkpoint");
+        checkpointRoot.transform.position = new Vector3(6.15f, -1.7f, 0f);
+        checkpointRoot.transform.localScale = Vector3.one;
 
-        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(checkpoint);
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(checkpointRoot);
         renderer.sprite = sprite;
         renderer.color = new Color(0.47f, 0.66f, 0.9f, 1f);
         renderer.sortingOrder = 2;
-        renderer.drawMode = SpriteDrawMode.Simple;
+        renderer.drawMode = SpriteDrawMode.Sliced;
+        renderer.size = new Vector2(0.28f, 0.28f);
 
-        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(checkpoint);
-        collider.size = Vector2.one;
-        collider.offset = Vector2.zero;
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(checkpointRoot);
+        collider.size = new Vector2(1.25f, 1.65f);
+        collider.offset = new Vector2(0f, -0.3f);
         collider.isTrigger = true;
 
-        Checkpoint2D checkpointComponent = GetOrAddComponent<Checkpoint2D>(checkpoint);
-        ConfigureCheckpoint(checkpointComponent, gameManager, collider, renderer);
+        Transform respawnPoint = EnsureChildMarker(checkpointRoot.transform, "Checkpoint Respawn Point", new Vector3(0.8f, PlayerGroundedY - checkpointRoot.transform.position.y, 0f));
+
+        CreateOrUpdateVisualChild(checkpointRoot.transform, "Pole", sprite, new Vector3(0f, -0.46f, 0f), new Vector3(0.09f, 0.82f, 1f), new Color(0.33f, 0.62f, 0.45f, 1f), 1);
+        CreateOrUpdateVisualChild(checkpointRoot.transform, "Patch", sprite, new Vector3(0f, -0.84f, 0f), new Vector3(1.45f, 0.08f, 1f), new Color(0.46f, 0.82f, 0.48f, 1f), 1);
+        CreateOrUpdateVisualChild(checkpointRoot.transform, "Leaf Left", sprite, new Vector3(-0.18f, -0.15f, 0f), new Vector3(0.22f, 0.1f, 1f), new Color(0.42f, 0.75f, 0.47f, 1f), 1, 28f);
+        CreateOrUpdateVisualChild(checkpointRoot.transform, "Leaf Right", sprite, new Vector3(0.18f, -0.15f, 0f), new Vector3(0.22f, 0.1f, 1f), new Color(0.42f, 0.75f, 0.47f, 1f), 1, -28f);
+
+        Checkpoint2D checkpoint = GetOrAddComponent<Checkpoint2D>(checkpointRoot);
+        ConfigureCheckpoint(checkpoint, gameManager, collider, renderer, respawnPoint);
     }
 
     private static void CreateOrUpdateExitPortal(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
     {
-        GameObject exitPortal = FindOrCreateChild(parent, "Exit Portal");
-        exitPortal.transform.position = new Vector3(24.15f, -2.2625f, 0f);
-        exitPortal.transform.localScale = new Vector3(0.3f, 0.6f, 1f);
+        GameObject portalRoot = FindOrCreateChild(parent, "Exit Portal Set");
+        portalRoot.transform.position = Vector3.zero;
+        portalRoot.transform.localScale = Vector3.one;
+
+        CreateOrUpdateVisualChild(portalRoot.transform, "Left Post", sprite, new Vector3(18.2f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+        CreateOrUpdateVisualChild(portalRoot.transform, "Right Post", sprite, new Vector3(19.08f, -2.16f, 0f), new Vector3(0.12f, 1f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+        CreateOrUpdateVisualChild(portalRoot.transform, "Lintel", sprite, new Vector3(18.64f, -1.68f, 0f), new Vector3(1f, 0.12f, 1f), new Color(0.39f, 0.59f, 0.41f, 1f), 1);
+
+        GameObject exitPortal = FindOrCreateChild(portalRoot.transform, "Portal");
+        exitPortal.transform.position = new Vector3(18.64f, -2.22f, 0f);
+        exitPortal.transform.localScale = new Vector3(0.3f, 0.64f, 1f);
 
         SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(exitPortal);
         renderer.sprite = sprite;
@@ -322,57 +433,14 @@ public static class StarterSceneBuilder
         ConfigurePortal(portal, gameManager, collider, renderer);
     }
 
-    private static void CreateOrUpdateGatePuzzle(Transform parent, Sprite sprite)
-    {
-        GameObject puzzleRoot = FindOrCreateChild(parent, "Gate Puzzle");
-
-        GameObject gate = FindOrCreateChild(puzzleRoot.transform, "Exit Gate");
-        gate.transform.position = new Vector3(22.2f, -1.6625f, 0f);
-        gate.transform.localScale = new Vector3(0.35f, 1.8f, 1f);
-
-        SpriteRenderer gateRenderer = GetOrAddComponent<SpriteRenderer>(gate);
-        gateRenderer.sprite = sprite;
-        gateRenderer.color = new Color(0.74f, 0.28f, 0.24f, 1f);
-        gateRenderer.sortingOrder = 3;
-        gateRenderer.drawMode = SpriteDrawMode.Simple;
-
-        BoxCollider2D gateCollider = GetOrAddComponent<BoxCollider2D>(gate);
-        gateCollider.size = Vector2.one;
-        gateCollider.offset = Vector2.zero;
-        gateCollider.isTrigger = false;
-
-        LinkedGate2D linkedGate = GetOrAddComponent<LinkedGate2D>(gate);
-        ConfigureGate(linkedGate, gateCollider, gateRenderer);
-
-        GameObject button = FindOrCreateChild(puzzleRoot.transform, "Floor Button");
-        button.transform.position = new Vector3(20.7f, 1.29375f, 0f);
-        button.transform.localScale = new Vector3(0.45f, 0.14f, 1f);
-
-        SpriteRenderer buttonRenderer = GetOrAddComponent<SpriteRenderer>(button);
-        buttonRenderer.sprite = sprite;
-        buttonRenderer.color = new Color(0.95f, 0.83f, 0.3f, 1f);
-        buttonRenderer.sortingOrder = 4;
-        buttonRenderer.drawMode = SpriteDrawMode.Simple;
-
-        BoxCollider2D buttonCollider = GetOrAddComponent<BoxCollider2D>(button);
-        buttonCollider.size = new Vector2(1.25f, 5f);
-        buttonCollider.offset = Vector2.zero;
-        buttonCollider.isTrigger = true;
-
-        FloorButton2D floorButton = GetOrAddComponent<FloorButton2D>(button);
-        ConfigureFloorButton(floorButton, linkedGate, buttonCollider, buttonRenderer);
-    }
-
     private static void CreateOrUpdateSeeds(Transform parent, Sprite sprite, GravityGardenGameManager gameManager)
     {
-        GameObject seedsRoot = FindOrCreateChild(parent, "Seed Group");
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 1", sprite, new Vector2(-10.75f, -2.2f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 2", sprite, new Vector2(-10.4f, -1.55f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 3", sprite, new Vector2(-6.6f, -0.8f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 4", sprite, new Vector2(-2.2f, -0.05f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 5", sprite, new Vector2(2.1f, -0.45f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 6", sprite, new Vector2(6.6f, 0.4f), gameManager);
-        CreateOrUpdateSeed(seedsRoot.transform, "Seed 7", sprite, new Vector2(15.85f, 0.55f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 1", sprite, new Vector2(-12.4f, -2.15f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 2", sprite, new Vector2(-7.9f, -1.25f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 3", sprite, new Vector2(-0.8f, -1.3f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 4", sprite, new Vector2(5.1f, -2.15f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 5", sprite, new Vector2(8.4f, -0.95f), gameManager);
+        CreateOrUpdateSeed(parent, "Seed 6", sprite, new Vector2(14.25f, -0.45f), gameManager);
     }
 
     private static void CreateOrUpdateSeed(Transform parent, string objectName, Sprite sprite, Vector2 position, GravityGardenGameManager gameManager)
@@ -399,8 +467,8 @@ public static class StarterSceneBuilder
     private static void CreateOrUpdateKillZone(Transform parent, GravityGardenGameManager gameManager)
     {
         GameObject killZone = FindOrCreateChild(parent, "Kill Zone");
-        killZone.transform.position = new Vector3(7f, -7f, 0f);
-        killZone.transform.localScale = new Vector3(60f, 1f, 1f);
+        killZone.transform.position = new Vector3(2.5f, -6.7f, 0f);
+        killZone.transform.localScale = new Vector3(46f, 1.5f, 1f);
 
         BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(killZone);
         collider.size = Vector2.one;
@@ -411,32 +479,65 @@ public static class StarterSceneBuilder
         ConfigureKillZone(zone, gameManager, collider);
     }
 
-    private static void CreateOrUpdateEnemies(Transform parent, Sprite sprite, GameObject enemyPrefab)
+    private static void CreateOrUpdatePlatform(Transform parent, string objectName, Sprite sprite, Vector2 position, Vector2 size, Color color)
     {
-        GameObject enemiesRoot = FindOrCreateChild(parent, "Enemies");
+        GameObject platform = FindOrCreateChild(parent, objectName);
+        platform.transform.position = new Vector3(position.x, position.y, 0f);
+        platform.transform.localScale = new Vector3(size.x, size.y, 1f);
 
-        CreateOrUpdateEnemyBlocker(enemiesRoot.transform, "Enemy Blocker", sprite, new Vector2(7.6f, 0.375f), new Vector2(0.16f, 0.55f), new Color(0.24f, 0.19f, 0.18f, 1f));
-
-        GameObject enemyObject = FindOrCreatePrefabChild(enemiesRoot.transform, "Patrolling Enemy", enemyPrefab);
-        enemyObject.transform.position = new Vector3(6.85f, 0.26875f, 0f);
-        enemyObject.transform.localScale = Vector3.one;
-    }
-
-    private static void CreateOrUpdateEnemyBlocker(Transform parent, string objectName, Sprite sprite, Vector2 position, Vector2 size, Color color)
-    {
-        GameObject blocker = FindOrCreateChild(parent, objectName);
-        blocker.transform.position = new Vector3(position.x, position.y, 0f);
-        blocker.transform.localScale = new Vector3(size.x, size.y, 1f);
-
-        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(blocker);
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(platform);
         renderer.sprite = sprite;
         renderer.color = color;
-        renderer.sortingOrder = 1;
         renderer.drawMode = SpriteDrawMode.Simple;
+        renderer.sortingOrder = 0;
+        renderer.size = Vector2.one;
 
-        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(blocker);
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(platform);
         collider.size = Vector2.one;
         collider.offset = Vector2.zero;
+        collider.isTrigger = false;
+    }
+
+    private static void CreateOrUpdateBackdrop(Transform parent, string objectName, Sprite sprite, Vector2 position, Vector2 size, Color color)
+    {
+        GameObject backdrop = FindOrCreateChild(parent, objectName);
+        backdrop.transform.position = new Vector3(position.x, position.y, 5f);
+        backdrop.transform.localScale = new Vector3(size.x, size.y, 1f);
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(backdrop);
+        renderer.sprite = sprite;
+        renderer.color = color;
+        renderer.drawMode = SpriteDrawMode.Simple;
+        renderer.sortingOrder = -10;
+        renderer.size = Vector2.one;
+    }
+
+    private static void CreateOrUpdateStaticMarker(Transform parent, string objectName, GameObject referencePrefab, Vector3 position, Vector2 size, Color color)
+    {
+        GameObject marker = FindOrCreateChild(parent, objectName);
+        marker.transform.position = position;
+        marker.transform.localScale = Vector3.one;
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(marker);
+        renderer.sprite = referencePrefab != null ? referencePrefab.GetComponent<SpriteRenderer>().sprite : null;
+        renderer.color = color;
+        renderer.sortingOrder = 1;
+        renderer.drawMode = SpriteDrawMode.Sliced;
+        renderer.size = size;
+    }
+
+    private static void CreateOrUpdateVisualChild(Transform parent, string objectName, Sprite sprite, Vector3 localPosition, Vector3 localScale, Color color, int sortingOrder, float zRotation = 0f)
+    {
+        GameObject child = FindOrCreateChild(parent, objectName);
+        child.transform.localPosition = localPosition;
+        child.transform.localRotation = Quaternion.Euler(0f, 0f, zRotation);
+        child.transform.localScale = localScale;
+
+        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(child);
+        renderer.sprite = sprite;
+        renderer.color = color;
+        renderer.sortingOrder = sortingOrder;
+        renderer.drawMode = SpriteDrawMode.Simple;
     }
 
     private static Transform EnsureGroundCheck(Transform parent)
@@ -453,27 +554,12 @@ public static class StarterSceneBuilder
         return groundCheck;
     }
 
-    private static void CreateOrUpdateEnemyVisuals(Transform parent, Sprite sprite)
+    private static Transform EnsureRespawnPoint(Transform parent)
     {
-        CreateOrUpdateEnemyVisualChild(parent, "Eye Left", sprite, new Vector3(-0.09f, 0.035f, 0f), new Vector3(0.075f, 0.075f, 1f), new Color(1f, 0.96f, 0.62f, 1f), 6);
-        CreateOrUpdateEnemyVisualChild(parent, "Eye Right", sprite, new Vector3(0.09f, 0.035f, 0f), new Vector3(0.075f, 0.075f, 1f), new Color(1f, 0.96f, 0.62f, 1f), 6);
-        CreateOrUpdateEnemyVisualChild(parent, "Spike Left", sprite, new Vector3(-0.13f, 0.19f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.72f, 0.26f, 1f), 5, 45f);
-        CreateOrUpdateEnemyVisualChild(parent, "Spike Middle", sprite, new Vector3(0f, 0.205f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.72f, 0.26f, 1f), 5, 45f);
-        CreateOrUpdateEnemyVisualChild(parent, "Spike Right", sprite, new Vector3(0.13f, 0.19f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.72f, 0.26f, 1f), 5, 45f);
-    }
-
-    private static void CreateOrUpdateEnemyVisualChild(Transform parent, string objectName, Sprite sprite, Vector3 localPosition, Vector3 localScale, Color color, int sortingOrder, float zRotation = 0f)
-    {
-        GameObject child = FindOrCreateChild(parent, objectName);
-        child.transform.localPosition = localPosition;
-        child.transform.localRotation = Quaternion.Euler(0f, 0f, zRotation);
-        child.transform.localScale = localScale;
-
-        SpriteRenderer renderer = GetOrAddComponent<SpriteRenderer>(child);
-        renderer.sprite = sprite;
-        renderer.color = color;
-        renderer.sortingOrder = sortingOrder;
-        renderer.drawMode = SpriteDrawMode.Simple;
+        GameObject respawnPoint = FindOrCreateChild(parent, "Respawn Point");
+        respawnPoint.transform.position = new Vector3(-12.5f, PlayerGroundedY, 0f);
+        respawnPoint.transform.localScale = Vector3.one;
+        return respawnPoint.transform;
     }
 
     private static Transform EnsureChildMarker(Transform parent, string objectName, Vector3 localPosition)
@@ -501,6 +587,7 @@ public static class StarterSceneBuilder
 
         mainCamera.orthographic = true;
         mainCamera.orthographicSize = 5.5f;
+        mainCamera.backgroundColor = new Color(0.08f, 0.13f, 0.18f, 1f);
 
         CameraFollow2D follow = GetOrAddComponent<CameraFollow2D>(mainCamera.gameObject);
         follow.SetTarget(target);
@@ -547,24 +634,6 @@ public static class StarterSceneBuilder
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void ConfigureGate(LinkedGate2D gate, Collider2D blockingCollider, SpriteRenderer renderer)
-    {
-        SerializedObject serializedObject = new SerializedObject(gate);
-        serializedObject.FindProperty("blockingCollider").objectReferenceValue = blockingCollider;
-        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
-        serializedObject.ApplyModifiedPropertiesWithoutUndo();
-    }
-
-    private static void ConfigureFloorButton(FloorButton2D floorButton, LinkedGate2D linkedGate, Collider2D triggerCollider, SpriteRenderer renderer)
-    {
-        SerializedObject serializedObject = new SerializedObject(floorButton);
-        serializedObject.FindProperty("linkedGate").objectReferenceValue = linkedGate;
-        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
-        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
-        serializedObject.FindProperty("pressedHeightScale").floatValue = 0.55f;
-        serializedObject.ApplyModifiedPropertiesWithoutUndo();
-    }
-
     private static void ConfigureSeed(EnergySeedCollectible collectible, GravityGardenGameManager gameManager, Collider2D triggerCollider, SpriteRenderer renderer, int seedValue)
     {
         SerializedObject serializedObject = new SerializedObject(collectible);
@@ -572,15 +641,6 @@ public static class StarterSceneBuilder
         serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
         serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
         serializedObject.FindProperty("seedValue").intValue = seedValue;
-        serializedObject.ApplyModifiedPropertiesWithoutUndo();
-    }
-
-    private static void ConfigureCheckpoint(Checkpoint2D checkpoint, GravityGardenGameManager gameManager, Collider2D triggerCollider, SpriteRenderer renderer)
-    {
-        SerializedObject serializedObject = new SerializedObject(checkpoint);
-        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
-        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
-        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
@@ -592,32 +652,62 @@ public static class StarterSceneBuilder
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void ConfigureEnemy(Enemy2D enemy, Rigidbody2D body, Collider2D bodyCollider, SpriteRenderer renderer)
+    private static void ConfigureCheckpoint(
+        Checkpoint2D checkpoint,
+        GravityGardenGameManager gameManager,
+        Collider2D triggerCollider,
+        SpriteRenderer renderer,
+        Transform respawnPoint)
     {
-        SerializedObject serializedObject = new SerializedObject(enemy);
-        serializedObject.FindProperty("body").objectReferenceValue = body;
-        serializedObject.FindProperty("bodyCollider").objectReferenceValue = bodyCollider;
+        SerializedObject serializedObject = new SerializedObject(checkpoint);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
         serializedObject.FindProperty("spriteRenderer").objectReferenceValue = renderer;
-        serializedObject.FindProperty("stompBounceVelocity").floatValue = 8.4f;
-        serializedObject.FindProperty("stompMinFallSpeed").floatValue = 0.1f;
-        serializedObject.FindProperty("stompContactPadding").floatValue = 0.08f;
-        serializedObject.FindProperty("defeatPlayerMessage").stringValue = "The critter bit back. Try again.";
+        serializedObject.FindProperty("respawnPoint").objectReferenceValue = respawnPoint;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void ConfigurePatrollingEnemy(PatrollingEnemy2D patrol, Enemy2D enemy, Rigidbody2D body, Collider2D bodyCollider, Transform edgeCheck, Transform wallCheck, LayerMask blockerLayers)
+    private static void ConfigureMovingPlatform(
+        MovingPlatform2D movingPlatform,
+        Rigidbody2D body,
+        Collider2D platformCollider,
+        SpriteRenderer spriteRenderer,
+        Transform pathRoot,
+        Vector2 size,
+        float moveSpeed,
+        float waitDuration)
     {
-        SerializedObject serializedObject = new SerializedObject(patrol);
-        serializedObject.FindProperty("enemy").objectReferenceValue = enemy;
+        SerializedObject serializedObject = new SerializedObject(movingPlatform);
         serializedObject.FindProperty("body").objectReferenceValue = body;
-        serializedObject.FindProperty("bodyCollider").objectReferenceValue = bodyCollider;
-        serializedObject.FindProperty("edgeCheck").objectReferenceValue = edgeCheck;
-        serializedObject.FindProperty("wallCheck").objectReferenceValue = wallCheck;
-        serializedObject.FindProperty("blockerLayers").intValue = blockerLayers.value;
-        serializedObject.FindProperty("moveSpeed").floatValue = 1.6f;
-        serializedObject.FindProperty("edgeCheckRadius").floatValue = 0.05f;
-        serializedObject.FindProperty("wallCheckRadius").floatValue = 0.05f;
-        serializedObject.FindProperty("startFacingRight").boolValue = false;
+        serializedObject.FindProperty("platformCollider").objectReferenceValue = platformCollider;
+        serializedObject.FindProperty("spriteRenderer").objectReferenceValue = spriteRenderer;
+        serializedObject.FindProperty("pathRoot").objectReferenceValue = pathRoot;
+        serializedObject.FindProperty("platformSize").vector2Value = size;
+        serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
+        serializedObject.FindProperty("waitDurationAtPoint").floatValue = waitDuration;
+        serializedObject.FindProperty("pointReachDistance").floatValue = 0.02f;
+        serializedObject.FindProperty("pingPong").boolValue = true;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureHazard(
+        CyclingSpikeHazard2D hazard,
+        GravityGardenGameManager gameManager,
+        Collider2D triggerCollider,
+        Transform hazardVisualRoot,
+        SpriteRenderer indicatorRenderer,
+        float safeDuration,
+        float warningDuration,
+        float dangerDuration)
+    {
+        SerializedObject serializedObject = new SerializedObject(hazard);
+        serializedObject.FindProperty("gameManager").objectReferenceValue = gameManager;
+        serializedObject.FindProperty("triggerCollider").objectReferenceValue = triggerCollider;
+        serializedObject.FindProperty("hazardVisualRoot").objectReferenceValue = hazardVisualRoot;
+        serializedObject.FindProperty("indicatorRenderer").objectReferenceValue = indicatorRenderer;
+        serializedObject.FindProperty("safeDuration").floatValue = safeDuration;
+        serializedObject.FindProperty("warningDuration").floatValue = warningDuration;
+        serializedObject.FindProperty("dangerDuration").floatValue = dangerDuration;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
@@ -653,14 +743,8 @@ public static class StarterSceneBuilder
         return created;
     }
 
-    private static GameObject FindOrCreatePrefabChild(Transform parent, string objectName, GameObject prefab)
+    private static GameObject InstantiatePrefabChild(Transform parent, string objectName, GameObject prefab)
     {
-        Transform existing = parent.Find(objectName);
-        if (existing != null)
-        {
-            return existing.gameObject;
-        }
-
         GameObject created = prefab != null
             ? (GameObject)PrefabUtility.InstantiatePrefab(prefab)
             : new GameObject(objectName);

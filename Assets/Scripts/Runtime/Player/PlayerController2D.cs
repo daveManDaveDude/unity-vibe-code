@@ -30,12 +30,25 @@ namespace VibeCode.Platformer
         [SerializeField] private float groundDeceleration = 60f;
         [SerializeField] private float airAcceleration = 26.25f;
         [SerializeField] private float airDeceleration = 30f;
+        [SerializeField] private bool stopHorizontalMotionOnLanding = true;
+        [SerializeField] private bool stabilizeIdleOnMovingPlatform = true;
+        [SerializeField] private float landingStopInputThreshold = 0.1f;
         [SerializeField] private int maxJumpCount = 2;
         [SerializeField] private float jumpVelocity = 9.2f;
 
         [Header("Jump Feel")]
         [SerializeField] private float lowJumpGravityMultiplier = 2f;
         [SerializeField] private float maxFallSpeed = 20f;
+
+        [Header("Ledge Assist")]
+        [SerializeField] private bool enableLedgeAssist = true;
+        [SerializeField] private float ledgeAssistPauseDuration = 0.08f;
+        [SerializeField] private float ledgeAssistHorizontalDistance = 0.18f;
+        [SerializeField] private float ledgeAssistTopSearchHeight = 0.65f;
+        [SerializeField] private float ledgeAssistStandClearance = 0.02f;
+        [SerializeField] private float ledgeAssistMaxRiseSpeed = 4f;
+        [SerializeField] private float ledgeAssistMaxFallSpeed = 6f;
+        [SerializeField] private float ledgeAssistMinInput = 0.2f;
 
         [Header("Ground Check")]
         [SerializeField] private LayerMask groundLayers = 1;
@@ -57,6 +70,8 @@ namespace VibeCode.Platformer
         [SerializeField] private Color dustColor = new Color(1f, 0.93f, 0.78f, 0.9f);
 
         private readonly Collider2D[] groundHits = new Collider2D[8];
+        private readonly Collider2D[] overlapHits = new Collider2D[8];
+        private readonly RaycastHit2D[] raycastHits = new RaycastHit2D[8];
         private InputAction moveAction;
         private InputAction jumpAction;
         private SpriteRenderer spriteRenderer;
@@ -67,6 +82,11 @@ namespace VibeCode.Platformer
         private float lastVerticalVelocity;
         private float facingDirection = 1f;
         private bool wasGroundedLastStep;
+        private MovingPlatform2D currentGroundPlatform;
+        private bool ledgeAssistActive;
+        private float ledgeAssistTimer;
+        private Vector2 ledgeAssistTargetPosition;
+        private float ledgeAssistDirection;
         private PlayerVisualState currentVisualState;
 
         public bool IsGrounded { get; private set; }
@@ -132,6 +152,7 @@ namespace VibeCode.Platformer
 
         private void OnDisable()
         {
+            CancelLedgeAssist();
             moveAction?.Disable();
             jumpAction?.Disable();
         }
@@ -139,6 +160,14 @@ namespace VibeCode.Platformer
         private void OnValidate()
         {
             maxJumpCount = Mathf.Max(1, maxJumpCount);
+            landingStopInputThreshold = Mathf.Clamp01(landingStopInputThreshold);
+            ledgeAssistPauseDuration = Mathf.Max(0f, ledgeAssistPauseDuration);
+            ledgeAssistHorizontalDistance = Mathf.Max(0.05f, ledgeAssistHorizontalDistance);
+            ledgeAssistTopSearchHeight = Mathf.Max(0.1f, ledgeAssistTopSearchHeight);
+            ledgeAssistStandClearance = Mathf.Max(0f, ledgeAssistStandClearance);
+            ledgeAssistMaxRiseSpeed = Mathf.Max(0f, ledgeAssistMaxRiseSpeed);
+            ledgeAssistMaxFallSpeed = Mathf.Max(0f, ledgeAssistMaxFallSpeed);
+            ledgeAssistMinInput = Mathf.Clamp01(ledgeAssistMinInput);
         }
 
         private void Update()
@@ -161,10 +190,25 @@ namespace VibeCode.Platformer
         private void FixedUpdate()
         {
             UpdateGroundedState();
-            HandleGroundTransitions();
-            ApplyHorizontalMovement(Time.fixedDeltaTime);
-            TryJump();
-            ApplyGravityTuning();
+            ApplyGroundPlatformMotion();
+            if (!ledgeAssistActive)
+            {
+                TryStartLedgeAssist();
+            }
+
+            if (ledgeAssistActive)
+            {
+                UpdateLedgeAssist(Time.fixedDeltaTime);
+            }
+            else
+            {
+                HandleGroundTransitions();
+                ApplyHorizontalMovement(Time.fixedDeltaTime);
+                TryJump();
+                ApplyGravityTuning();
+                StabilizeIdleOnMovingPlatform();
+            }
+
             UpdateVisuals(Time.fixedDeltaTime);
 
             wasGroundedLastStep = IsGrounded;
@@ -189,12 +233,14 @@ namespace VibeCode.Platformer
 
         public void ResetMotionState()
         {
+            CancelLedgeAssist();
             moveInput = Vector2.zero;
             jumpQueued = false;
             jumpsUsed = 0;
             IsGrounded = false;
             lastVerticalVelocity = 0f;
             wasGroundedLastStep = false;
+            currentGroundPlatform = null;
 
             if (body != null)
             {
@@ -212,6 +258,7 @@ namespace VibeCode.Platformer
                 return;
             }
 
+            CancelLedgeAssist();
             Vector2 velocity = body.linearVelocity;
             velocity.y = Mathf.Max(velocity.y, upwardVelocity);
             body.linearVelocity = velocity;
@@ -250,24 +297,29 @@ namespace VibeCode.Platformer
         private void UpdateGroundedState()
         {
             bool grounded;
+            Collider2D groundCollider;
 
             if (groundCheck != null)
             {
-                grounded = HasGroundContact(groundCheck.position, groundCheckRadius);
+                grounded = TryGetGroundContact(groundCheck.position, groundCheckRadius, out groundCollider);
             }
             else if (bodyCollider != null)
             {
                 Bounds bounds = bodyCollider.bounds;
                 Vector2 boxCenter = new Vector2(bounds.center.x, bounds.min.y - (groundCheckRadius * 0.5f));
                 Vector2 boxSize = new Vector2(bounds.size.x * 0.85f, groundCheckRadius);
-                grounded = HasGroundContact(boxCenter, boxSize);
+                grounded = TryGetGroundContact(boxCenter, boxSize, out groundCollider);
             }
             else
             {
                 grounded = false;
+                groundCollider = null;
             }
 
             IsGrounded = grounded;
+            currentGroundPlatform = grounded && groundCollider != null
+                ? groundCollider.GetComponentInParent<MovingPlatform2D>()
+                : null;
 
             if (IsGrounded)
             {
@@ -277,25 +329,35 @@ namespace VibeCode.Platformer
 
         private bool HasGroundContact(Vector2 center, float radius)
         {
+            return TryGetGroundContact(center, radius, out _);
+        }
+
+        private bool TryGetGroundContact(Vector2 center, float radius, out Collider2D groundCollider)
+        {
             ContactFilter2D filter = new ContactFilter2D();
             filter.SetLayerMask(groundLayers);
             filter.useTriggers = false;
 
             int hitCount = Physics2D.OverlapCircle(center, radius, filter, groundHits);
-            return ContainsValidGroundHit(hitCount);
+            return ContainsValidGroundHit(hitCount, out groundCollider);
         }
 
         private bool HasGroundContact(Vector2 center, Vector2 size)
+        {
+            return TryGetGroundContact(center, size, out _);
+        }
+
+        private bool TryGetGroundContact(Vector2 center, Vector2 size, out Collider2D groundCollider)
         {
             ContactFilter2D filter = new ContactFilter2D();
             filter.SetLayerMask(groundLayers);
             filter.useTriggers = false;
 
             int hitCount = Physics2D.OverlapBox(center, size, 0f, filter, groundHits);
-            return ContainsValidGroundHit(hitCount);
+            return ContainsValidGroundHit(hitCount, out groundCollider);
         }
 
-        private bool ContainsValidGroundHit(int hitCount)
+        private bool ContainsValidGroundHit(int hitCount, out Collider2D validGround)
         {
             for (int index = 0; index < hitCount; index++)
             {
@@ -304,10 +366,12 @@ namespace VibeCode.Platformer
 
                 if (!IsSelfCollider(hit))
                 {
+                    validGround = hit;
                     return true;
                 }
             }
 
+            validGround = null;
             return false;
         }
 
@@ -339,14 +403,17 @@ namespace VibeCode.Platformer
                 return;
             }
 
-            float targetVelocityX = moveInput.x * moveSpeed;
             Vector2 velocity = body.linearVelocity;
+            float groundPlatformVelocityX = GetGroundPlatformVelocityX();
+            float currentRelativeVelocityX = velocity.x - groundPlatformVelocityX;
+            float targetRelativeVelocityX = moveInput.x * moveSpeed;
+            float targetVelocityX = groundPlatformVelocityX + targetRelativeVelocityX;
             float acceleration = IsGrounded ? groundAcceleration : airAcceleration;
             float deceleration = IsGrounded ? groundDeceleration : airDeceleration;
-            bool isStopping = Mathf.Abs(targetVelocityX) < 0.01f;
-            bool isReversing = Mathf.Abs(velocity.x) > 0.01f
-                && Mathf.Abs(targetVelocityX) > 0.01f
-                && Mathf.Sign(targetVelocityX) != Mathf.Sign(velocity.x);
+            bool isStopping = Mathf.Abs(targetRelativeVelocityX) < 0.01f;
+            bool isReversing = Mathf.Abs(currentRelativeVelocityX) > 0.01f
+                && Mathf.Abs(targetRelativeVelocityX) > 0.01f
+                && Mathf.Sign(targetRelativeVelocityX) != Mathf.Sign(currentRelativeVelocityX);
             float moveRate = (isStopping || isReversing ? deceleration : acceleration) * deltaTime;
             velocity.x = Mathf.MoveTowards(velocity.x, targetVelocityX, moveRate);
             body.linearVelocity = velocity;
@@ -360,6 +427,174 @@ namespace VibeCode.Platformer
             {
                 spriteRenderer.flipX = facingDirection < 0f;
             }
+        }
+
+        private void ApplyGroundPlatformMotion()
+        {
+            // Horizontal platform carry is handled through matched player velocity in ApplyHorizontalMovement.
+        }
+
+        private bool TryStartLedgeAssist()
+        {
+            if (!enableLedgeAssist || body == null || bodyCollider == null || IsGrounded)
+            {
+                return false;
+            }
+
+            if (Mathf.Abs(moveInput.x) < ledgeAssistMinInput)
+            {
+                return false;
+            }
+
+            Vector2 velocity = body.linearVelocity;
+            if (velocity.y > ledgeAssistMaxRiseSpeed || velocity.y < -ledgeAssistMaxFallSpeed)
+            {
+                return false;
+            }
+
+            float direction = Mathf.Sign(moveInput.x);
+            if (!HasGroundContact(GetLedgeLowerProbe(direction), groundCheckRadius))
+            {
+                return false;
+            }
+
+            if (HasGroundContact(GetLedgeUpperProbe(direction), groundCheckRadius))
+            {
+                return false;
+            }
+
+            if (!TryCalculateLedgeAssistTarget(direction, out Vector2 targetPosition))
+            {
+                return false;
+            }
+
+            ledgeAssistActive = true;
+            ledgeAssistTimer = ledgeAssistPauseDuration;
+            ledgeAssistTargetPosition = targetPosition;
+            ledgeAssistDirection = direction;
+            jumpQueued = false;
+            body.linearVelocity = Vector2.zero;
+            body.gravityScale = 0f;
+            return true;
+        }
+
+        private void UpdateLedgeAssist(float deltaTime)
+        {
+            if (body == null)
+            {
+                CancelLedgeAssist();
+                return;
+            }
+
+            // Hold for a beat so the near-miss reads before the player settles safely on top.
+            body.linearVelocity = Vector2.zero;
+            body.gravityScale = 0f;
+            ledgeAssistTimer -= deltaTime;
+
+            if (ledgeAssistTimer > 0f)
+            {
+                return;
+            }
+
+            body.position = ledgeAssistTargetPosition;
+            body.linearVelocity = new Vector2(ledgeAssistDirection * moveSpeed * 0.35f, 0f);
+            body.gravityScale = defaultGravityScale;
+            ledgeAssistActive = false;
+            UpdateGroundedState();
+        }
+
+        private void CancelLedgeAssist()
+        {
+            ledgeAssistActive = false;
+            ledgeAssistTimer = 0f;
+
+            if (body != null)
+            {
+                body.gravityScale = defaultGravityScale;
+            }
+        }
+
+        private Vector2 GetLedgeLowerProbe(float direction)
+        {
+            Bounds bounds = bodyCollider.bounds;
+            return new Vector2(
+                bounds.center.x + (direction * (bounds.extents.x + groundCheckRadius)),
+                bounds.center.y);
+        }
+
+        private Vector2 GetLedgeUpperProbe(float direction)
+        {
+            Bounds bounds = bodyCollider.bounds;
+            return new Vector2(
+                bounds.center.x + (direction * (bounds.extents.x + groundCheckRadius)),
+                bounds.max.y + groundCheckRadius);
+        }
+
+        private bool TryCalculateLedgeAssistTarget(float direction, out Vector2 targetPosition)
+        {
+            targetPosition = body.position;
+
+            Vector2 centerOffset = (Vector2)bodyCollider.bounds.center - body.position;
+            float targetCenterX = bodyCollider.bounds.center.x + (direction * ledgeAssistHorizontalDistance);
+            float targetProbeX = groundCheck != null
+                ? groundCheck.position.x + (direction * ledgeAssistHorizontalDistance)
+                : targetCenterX;
+            Vector2 searchOrigin = new Vector2(targetProbeX, bodyCollider.bounds.max.y + ledgeAssistTopSearchHeight);
+
+            if (!TryGetGroundBelow(searchOrigin, ledgeAssistTopSearchHeight + bodyCollider.bounds.size.y, out RaycastHit2D groundHit))
+            {
+                return false;
+            }
+
+            float targetCenterY = groundHit.point.y + ledgeAssistStandClearance + bodyCollider.bounds.extents.y;
+            targetPosition = new Vector2(targetCenterX - centerOffset.x, targetCenterY - centerOffset.y);
+            return CanOccupyPosition(targetPosition);
+        }
+
+        private bool TryGetGroundBelow(Vector2 origin, float distance, out RaycastHit2D validHit)
+        {
+            ContactFilter2D filter = CreateGroundFilter();
+            int hitCount = Physics2D.Raycast(origin, Vector2.down, filter, raycastHits, distance);
+
+            for (int index = 0; index < hitCount; index++)
+            {
+                RaycastHit2D hit = raycastHits[index];
+                raycastHits[index] = default;
+
+                if (IsSelfCollider(hit.collider))
+                {
+                    continue;
+                }
+
+                validHit = hit;
+                return true;
+            }
+
+            validHit = default;
+            return false;
+        }
+
+        private bool CanOccupyPosition(Vector2 targetPosition)
+        {
+            ContactFilter2D filter = CreateGroundFilter();
+            Vector2 positionOffset = targetPosition - body.position;
+            Bounds bounds = bodyCollider.bounds;
+            Vector2 overlapCenter = (Vector2)bounds.center + positionOffset;
+            Vector2 overlapSize = bounds.size * 0.9f;
+            int hitCount = Physics2D.OverlapBox(overlapCenter, overlapSize, 0f, filter, overlapHits);
+
+            for (int index = 0; index < hitCount; index++)
+            {
+                Collider2D hit = overlapHits[index];
+                overlapHits[index] = null;
+
+                if (!IsSelfCollider(hit))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void TryJump()
@@ -445,10 +680,34 @@ namespace VibeCode.Platformer
                 return;
             }
 
+            if (stopHorizontalMotionOnLanding && body != null && Mathf.Abs(moveInput.x) <= landingStopInputThreshold)
+            {
+                Vector2 velocity = body.linearVelocity;
+                velocity.x = GetGroundPlatformVelocityX();
+                body.linearVelocity = velocity;
+            }
+
             if (lastVerticalVelocity <= -landingDustMinSpeed)
             {
                 SpawnDustBurst(1f, 0.15f, 0.28f);
             }
+        }
+
+        private void StabilizeIdleOnMovingPlatform()
+        {
+            if (!stabilizeIdleOnMovingPlatform || body == null)
+            {
+                return;
+            }
+
+            if (!IsGrounded || currentGroundPlatform == null || Mathf.Abs(moveInput.x) > landingStopInputThreshold)
+            {
+                return;
+            }
+
+            Vector2 velocity = body.linearVelocity;
+            velocity.x = currentGroundPlatform.CurrentVelocity.x;
+            body.linearVelocity = velocity;
         }
 
         private void UpdateVisuals(float deltaTime, bool snap = false)
@@ -494,9 +753,26 @@ namespace VibeCode.Platformer
                 return PlayerVisualState.Jump;
             }
 
-            return Mathf.Abs(body != null ? body.linearVelocity.x : moveInput.x) > 0.15f
+            return Mathf.Abs(GetVisualHorizontalVelocity()) > 0.15f
                 ? PlayerVisualState.Run
                 : PlayerVisualState.Idle;
+        }
+
+        private float GetVisualHorizontalVelocity()
+        {
+            if (body == null)
+            {
+                return moveInput.x;
+            }
+
+            return body.linearVelocity.x - GetGroundPlatformVelocityX();
+        }
+
+        private float GetGroundPlatformVelocityX()
+        {
+            return IsGrounded && currentGroundPlatform != null
+                ? currentGroundPlatform.CurrentVelocity.x
+                : 0f;
         }
 
         private Vector2 GetRunVisualSize()
@@ -536,6 +812,14 @@ namespace VibeCode.Platformer
                 new Vector3(0.34f * scaleMultiplier, 0.2f * scaleMultiplier, 1f),
                 velocity,
                 lifetime);
+        }
+
+        private ContactFilter2D CreateGroundFilter()
+        {
+            ContactFilter2D filter = new ContactFilter2D();
+            filter.SetLayerMask(groundLayers);
+            filter.useTriggers = false;
+            return filter;
         }
 
         private void OnDrawGizmosSelected()

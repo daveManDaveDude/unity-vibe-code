@@ -118,6 +118,96 @@ namespace VibeCode.Tests.EditMode
         }
 
         [Test]
+        public void LedgeAssistStartsWhenPlayerBarelyCatchesPlatformEdge()
+        {
+            var player = new GameObject("Player Under Test");
+            var platform = new GameObject("Platform Under Test");
+
+            try
+            {
+                player.layer = 0;
+                platform.layer = 0;
+
+                Rigidbody2D body = player.AddComponent<Rigidbody2D>();
+                body.gravityScale = 4f;
+
+                CapsuleCollider2D collider = player.AddComponent<CapsuleCollider2D>();
+                collider.direction = CapsuleDirection2D.Vertical;
+                collider.size = new Vector2(0.225f, 0.45f);
+
+                BoxCollider2D platformCollider = platform.AddComponent<BoxCollider2D>();
+                platformCollider.size = new Vector2(1.2f, 0.2f);
+                platform.transform.position = new Vector3(0.55f, 0f, 0f);
+
+                var groundCheck = new GameObject("GroundCheck").transform;
+                groundCheck.SetParent(player.transform, false);
+                groundCheck.localPosition = new Vector3(0f, -0.24f, 0f);
+
+                player.transform.position = new Vector3(-0.18f, -0.02f, 0f);
+                Physics2D.SyncTransforms();
+
+                PlayerController2D controller = player.AddComponent<PlayerController2D>();
+                ConfigureControllerForGroundCheck(controller, body, collider, groundCheck);
+                SetPrivateField(controller, "moveInput", new Vector2(1f, 0f));
+                body.linearVelocity = new Vector2(1.5f, -0.5f);
+
+                bool started = InvokeTryStartLedgeAssist(controller);
+
+                Assert.That(started, Is.True, "Expected the ledge assist to trigger when the player barely catches the platform corner.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(platform);
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
+        public void LedgeAssistDoesNotStartAgainstTallWall()
+        {
+            var player = new GameObject("Player Under Test");
+            var wall = new GameObject("Wall Under Test");
+
+            try
+            {
+                player.layer = 0;
+                wall.layer = 0;
+
+                Rigidbody2D body = player.AddComponent<Rigidbody2D>();
+                body.gravityScale = 4f;
+
+                CapsuleCollider2D collider = player.AddComponent<CapsuleCollider2D>();
+                collider.direction = CapsuleDirection2D.Vertical;
+                collider.size = new Vector2(0.225f, 0.45f);
+
+                BoxCollider2D wallCollider = wall.AddComponent<BoxCollider2D>();
+                wallCollider.size = new Vector2(1f, 2f);
+                wall.transform.position = new Vector3(0.55f, 0.5f, 0f);
+
+                var groundCheck = new GameObject("GroundCheck").transform;
+                groundCheck.SetParent(player.transform, false);
+                groundCheck.localPosition = new Vector3(0f, -0.24f, 0f);
+
+                player.transform.position = new Vector3(-0.18f, -0.02f, 0f);
+                Physics2D.SyncTransforms();
+
+                PlayerController2D controller = player.AddComponent<PlayerController2D>();
+                ConfigureControllerForGroundCheck(controller, body, collider, groundCheck);
+                SetPrivateField(controller, "moveInput", new Vector2(1f, 0f));
+                body.linearVelocity = new Vector2(1.5f, -0.5f);
+
+                bool started = InvokeTryStartLedgeAssist(controller);
+
+                Assert.That(started, Is.False, "Expected the ledge assist to stay off when the player is pushing into a full wall.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(wall);
+                Object.DestroyImmediate(player);
+            }
+        }
+
+        [Test]
         public void MainSceneAssetExists()
         {
             SceneAsset mainScene = AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Scenes/Main.unity");
@@ -200,6 +290,16 @@ namespace VibeCode.Tests.EditMode
             updateGroundedState.Invoke(controller, null);
         }
 
+        private static bool InvokeTryStartLedgeAssist(PlayerController2D controller)
+        {
+            MethodInfo tryStartLedgeAssist = typeof(PlayerController2D).GetMethod(
+                "TryStartLedgeAssist",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.That(tryStartLedgeAssist, Is.Not.Null, "Expected to find the private TryStartLedgeAssist method.");
+            return (bool)tryStartLedgeAssist.Invoke(controller, null);
+        }
+
         private static void ConfigureControllerForGroundCheck(
             PlayerController2D controller,
             Rigidbody2D body,
@@ -212,6 +312,14 @@ namespace VibeCode.Tests.EditMode
             serializedObject.FindProperty("groundCheck").objectReferenceValue = groundCheck;
             serializedObject.FindProperty("groundLayers").intValue = 1 << 0;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetPrivateField<T>(PlayerController2D controller, string fieldName, T value)
+        {
+            FieldInfo field = typeof(PlayerController2D).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.That(field, Is.Not.Null, $"Expected to find private field '{fieldName}'.");
+            field.SetValue(controller, value);
         }
     }
 }

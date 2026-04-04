@@ -57,8 +57,8 @@ namespace VibeCode.Platformer
             string objectiveText = gameManager.HasWon
                 ? "The exit is complete. Slice clear."
                 : gameManager.CanUseExit
-                    ? "Portal ready. Step into the exit."
-                    : $"Need {gameManager.MinimumSeedsToExit} seeds to open the exit.";
+                    ? "Portal ready. No key needed."
+                    : $"No key in this slice. Need {gameManager.SeedsRemainingForExit} more seed{(gameManager.SeedsRemainingForExit == 1 ? string.Empty : "s")} to open the exit.";
 
             GUI.Label(
                 new Rect(textX, seedPanel.y + 32f, seedPanel.width - 24f, bodyFontSize + 8f),

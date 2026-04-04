@@ -28,7 +28,7 @@ After Unity finishes importing scripts:
 3. In the Unity menu bar, click `Vibe` -> `Build Platformer Starter Scene`.
 4. Press Play.
 
-The scene builder will refresh the current Gravity Garden playable slice with placeholder art, player movement, seeds, a HUD, an exit portal, and a fall-respawn zone.
+The scene builder will refresh the current Gravity Garden playable slice with placeholder art, player movement, seeds, a HUD, a moving platform, a timed thorn bridge, an exit portal, and a fall-respawn zone.
 
 ## Default controls
 
@@ -37,12 +37,13 @@ The scene builder will refresh the current Gravity Garden playable slice with pl
 
 ## Gravity Garden gameplay loop
 
-This first slice is a short one-screen platforming run:
+This first slice is a short platforming run built around a simple collect-survive-exit loop:
 
 - start on the glowing garden patch at the left side of the level
-- touch the checkpoint marker as you move through the level to update your respawn spot
 - collect enough `energy seeds` to power the exit portal
-- avoid falling into the kill zone below the level or you will respawn at the start or your latest checkpoint
+- use the moving platform to cross the first garden gap
+- wait for the thorn bridge to shift into its safe timing, then cross before it snaps back to danger
+- avoid falling into the kill zone below the level or touching the active hazard, or you will respawn at the start
 - once the HUD says the portal is ready, reach the exit on the right to win the slice
 
 ## Manual movement feel checklist
@@ -50,7 +51,9 @@ This first slice is a short one-screen platforming run:
 - Hold jump for a full hop, then tap jump for a shorter hop. The difference should feel easy to control.
 - Run, let go, and reverse direction. The player should speed up smoothly but stop and turn without feeling slippery.
 - Watch the placeholder body states: idle on the ground, bouncy run while moving, and jump visuals while airborne.
-- Jump and land a few times, then fall into the kill zone after touching the checkpoint. You should see simple dust feedback and respawn at the checkpoint instead of the start.
+- Ride the moving platform for a full pass and make sure the player stays carried cleanly without sliding off.
+- Watch the thorn bridge light cycle between safe, warning, and danger. The safe and danger windows should read clearly before you commit.
+- Fall into the kill zone or touch the thorn bridge during its danger state. You should respawn back at the starting patch.
 
 ## What should be committed
 
