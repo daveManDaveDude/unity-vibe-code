@@ -34,6 +34,24 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain a kill zone.");
             Assert.That(Object.FindAnyObjectByType<MovingPlatform2D>(), Is.Not.Null,
                 "Expected Main scene to contain a moving platform traversal helper.");
+            PatrollingEnemy2D patrollingEnemy = Object.FindAnyObjectByType<PatrollingEnemy2D>();
+            SpriteRenderer[] patrollingEnemyRenderers = patrollingEnemy != null
+                ? patrollingEnemy.GetComponentsInChildren<SpriteRenderer>()
+                : null;
+
+            Assert.That(patrollingEnemy, Is.Not.Null,
+                "Expected Main scene to contain a patrolling ground enemy encounter.");
+            Assert.That(patrollingEnemyRenderers, Is.Not.Null.And.Length.GreaterThan(0),
+                "Expected the patrolling ground enemy encounter to have visible placeholder renderers.");
+
+            float tallestEnemyRendererHeight = 0f;
+            for (int index = 0; index < patrollingEnemyRenderers.Length; index++)
+            {
+                tallestEnemyRendererHeight = Mathf.Max(tallestEnemyRendererHeight, patrollingEnemyRenderers[index].bounds.size.y);
+            }
+
+            Assert.That(tallestEnemyRendererHeight, Is.GreaterThan(0.24f),
+                "Expected the patrolling ground enemy placeholder to be large enough to read clearly in-game.");
             Assert.That(Object.FindAnyObjectByType<CyclingSpikeHazard2D>(), Is.Not.Null,
                 "Expected Main scene to contain a timed hazard.");
             Assert.That(Object.FindObjectsByType<EnergySeedCollectible>(FindObjectsSortMode.None).Length, Is.GreaterThanOrEqualTo(gameManager.MinimumSeedsToExit),
@@ -148,6 +166,46 @@ namespace VibeCode.Tests.PlayMode
 
             Assert.That(thornBridge.CurrentState, Is.EqualTo(CyclingSpikeHazard2D.HazardState.Danger),
                 "Expected the thorn bridge to cycle into its dangerous state.");
+
+            for (int index = 0; index < 5; index++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(player.transform.position.x, Is.EqualTo(respawnObject.transform.position.x).Within(0.05f));
+            Assert.That(player.transform.position.y, Is.EqualTo(respawnObject.transform.position.y).Within(0.05f));
+        }
+
+        [UnityTest]
+        public IEnumerator TouchingPatrollingEnemyRespawnsThePlayer()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            PlayerController2D player = Object.FindAnyObjectByType<PlayerController2D>();
+            PatrollingEnemy2D patrollingEnemy = Object.FindAnyObjectByType<PatrollingEnemy2D>();
+            Rigidbody2D playerBody = player != null ? player.GetComponent<Rigidbody2D>() : null;
+            CapsuleCollider2D playerCollider = player != null ? player.GetComponent<CapsuleCollider2D>() : null;
+            Collider2D enemyCollider = patrollingEnemy != null ? patrollingEnemy.GetComponent<Collider2D>() : null;
+            GameObject respawnObject = GameObject.Find("Respawn Point");
+
+            Assert.That(player, Is.Not.Null);
+            Assert.That(patrollingEnemy, Is.Not.Null);
+            Assert.That(playerBody, Is.Not.Null);
+            Assert.That(playerCollider, Is.Not.Null);
+            Assert.That(enemyCollider, Is.Not.Null);
+            Assert.That(respawnObject, Is.Not.Null);
+
+            Bounds enemyBounds = enemyCollider.bounds;
+            Vector3 contactPosition = new Vector3(
+                enemyBounds.min.x - playerCollider.bounds.extents.x + 0.02f,
+                enemyBounds.min.y + playerCollider.bounds.extents.y,
+                0f);
+
+            player.transform.SetParent(null, true);
+            playerBody.linearVelocity = Vector2.zero;
+            player.transform.position = contactPosition;
+            Physics2D.SyncTransforms();
 
             for (int index = 0; index < 5; index++)
             {

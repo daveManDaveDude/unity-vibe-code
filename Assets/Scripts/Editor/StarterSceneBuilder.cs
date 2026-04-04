@@ -13,11 +13,15 @@ public static class StarterSceneBuilder
     private const string PlaceholderSpritePath = "Assets/Art/Sprites/PlaceholderSquare.png";
     private const string MovingPlatformPrefabPath = "Assets/Prefabs/Gameplay/MovingPlatform.prefab";
     private const string CyclingSpikeHazardPrefabPath = "Assets/Prefabs/Gameplay/CyclingSpikeHazard.prefab";
+    private const string PatrollingEnemyPrefabPath = "Assets/Prefabs/Enemies/PatrollingEnemy.prefab";
 
     private static readonly Vector2 PlayerSize = new Vector2(0.225f, 0.45f);
+    private static readonly Vector2 PatrollingEnemySize = new Vector2(0.45f, 0.35f);
+    private const float PatrollingEnemyVisualScale = 0.8f;
     private static readonly Vector2 StaticPlatformThickness = new Vector2(1f, 0.1875f);
     private static readonly float GroundY = -2.75f;
     private static readonly float PlayerGroundedY = -2.3375f;
+    private static readonly float PatrollingEnemyGroundedY = GroundY + (StaticPlatformThickness.y * 0.5f) + ((PatrollingEnemySize.y * PatrollingEnemyVisualScale) * 0.5f);
 
     [MenuItem("Vibe/Build Platformer Starter Scene")]
     public static void BuildPlatformerStarterScene()
@@ -36,11 +40,17 @@ public static class StarterSceneBuilder
 
         GameObject movingPlatformPrefab = EnsureMovingPlatformPrefab(placeholderSprite);
         GameObject timedHazardPrefab = EnsureCyclingSpikeHazardPrefab(placeholderSprite);
+        GameObject patrollingEnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PatrollingEnemyPrefabPath);
+        if (patrollingEnemyPrefab == null)
+        {
+            Debug.LogError($"Could not load patrolling enemy prefab at '{PatrollingEnemyPrefabPath}'.");
+            return;
+        }
 
         GameObject player = CreateOrUpdatePlayer(placeholderSprite, inputActions);
         GravityGardenGameManager gameManager = CreateOrUpdateGameplay(player);
         CreateOrUpdateLevel(placeholderSprite);
-        CreateOrUpdateSliceObjects(placeholderSprite, gameManager, movingPlatformPrefab, timedHazardPrefab);
+        CreateOrUpdateSliceObjects(placeholderSprite, gameManager, movingPlatformPrefab, timedHazardPrefab, patrollingEnemyPrefab);
         ConfigureCamera(player.transform);
         EnsureBuildSettings();
 
@@ -221,7 +231,12 @@ public static class StarterSceneBuilder
         CreateOrUpdateBackdrop(sceneryRoot, "Abyss Fog", sprite, new Vector2(2.5f, -5.4f), new Vector2(46f, 3f), new Color(0.06f, 0.11f, 0.14f, 0.5f));
     }
 
-    private static void CreateOrUpdateSliceObjects(Sprite sprite, GravityGardenGameManager gameManager, GameObject movingPlatformPrefab, GameObject timedHazardPrefab)
+    private static void CreateOrUpdateSliceObjects(
+        Sprite sprite,
+        GravityGardenGameManager gameManager,
+        GameObject movingPlatformPrefab,
+        GameObject timedHazardPrefab,
+        GameObject patrollingEnemyPrefab)
     {
         GameObject sliceObjectsRoot = FindOrCreateRoot("Slice Objects");
         Transform markersRoot = FindOrCreateChild(sliceObjectsRoot.transform, "Markers").transform;
@@ -234,6 +249,7 @@ public static class StarterSceneBuilder
         CreateOrUpdateExitPortal(markersRoot, sprite, gameManager);
         CreateOrUpdateSeeds(collectiblesRoot, sprite, gameManager);
         CreateOrUpdateMovingPlatform(traversalRoot, movingPlatformPrefab);
+        CreateOrUpdatePatrollingEnemy(hazardsRoot, patrollingEnemyPrefab, sprite);
         CreateOrUpdateHazard(hazardsRoot, timedHazardPrefab, gameManager);
         CreateOrUpdateKillZone(sliceObjectsRoot.transform, gameManager);
     }
@@ -362,6 +378,21 @@ public static class StarterSceneBuilder
         Transform indicator = hazard.transform.Find("Timing Light");
         SpriteRenderer indicatorRenderer = indicator != null ? indicator.GetComponent<SpriteRenderer>() : null;
         ConfigureHazard(hazardComponent, gameManager, collider, visualsRoot, indicatorRenderer, 1.15f, 0.45f, 0.9f);
+    }
+
+    private static void CreateOrUpdatePatrollingEnemy(Transform parent, GameObject patrollingEnemyPrefab, Sprite sprite)
+    {
+        GameObject enemy = InstantiatePrefabChild(parent, "Checkpoint Critter", patrollingEnemyPrefab);
+        enemy.transform.position = new Vector3(4.1f, PatrollingEnemyGroundedY, 0f);
+        enemy.transform.rotation = Quaternion.identity;
+        enemy.transform.localScale = new Vector3(PatrollingEnemyVisualScale, PatrollingEnemyVisualScale, 1f);
+
+        PatrollingEnemy2D patrollingEnemy = enemy.GetComponent<PatrollingEnemy2D>();
+        ConfigurePatrollingEnemy(patrollingEnemy, 1 << 0, 1.45f, true);
+        ConfigurePatrollingEnemyVisuals(enemy);
+        CreateOrUpdatePatrollingEnemyDisplay(enemy.transform, sprite);
+        CreateOrUpdatePatrollingEnemyStop(parent, "Checkpoint Critter Left Stop", new Vector3(3.2f, -2.42f, 0f), new Vector2(0.08f, 0.8f));
+        CreateOrUpdatePatrollingEnemyStop(parent, "Checkpoint Critter Right Stop", new Vector3(5.35f, -2.42f, 0f), new Vector2(0.08f, 0.8f));
     }
 
     private static void CreateOrUpdateStartMarker(Transform parent, Sprite sprite)
@@ -540,6 +571,28 @@ public static class StarterSceneBuilder
         renderer.drawMode = SpriteDrawMode.Simple;
     }
 
+    private static void CreateOrUpdatePatrollingEnemyDisplay(Transform parent, Sprite sprite)
+    {
+        CreateOrUpdateVisualChild(parent, "Display Body", sprite, new Vector3(0f, 0.02f, 0f), new Vector3(0.48f, 0.36f, 1f), new Color(0.95f, 0.18f, 0.14f, 1f), 9);
+        CreateOrUpdateVisualChild(parent, "Display Eye Left", sprite, new Vector3(-0.09f, 0.04f, 0f), new Vector3(0.055f, 0.055f, 1f), new Color(1f, 0.97f, 0.82f, 1f), 11);
+        CreateOrUpdateVisualChild(parent, "Display Eye Right", sprite, new Vector3(0.09f, 0.04f, 0f), new Vector3(0.055f, 0.055f, 1f), new Color(1f, 0.97f, 0.82f, 1f), 11);
+        CreateOrUpdateVisualChild(parent, "Display Spike Left", sprite, new Vector3(-0.13f, 0.19f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.8f, 0.24f, 1f), 10, 45f);
+        CreateOrUpdateVisualChild(parent, "Display Spike Mid", sprite, new Vector3(0f, 0.205f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.8f, 0.24f, 1f), 10, 45f);
+        CreateOrUpdateVisualChild(parent, "Display Spike Right", sprite, new Vector3(0.13f, 0.19f, 0f), new Vector3(0.08f, 0.08f, 1f), new Color(1f, 0.8f, 0.24f, 1f), 10, 45f);
+    }
+
+    private static void CreateOrUpdatePatrollingEnemyStop(Transform parent, string objectName, Vector3 position, Vector2 size)
+    {
+        GameObject stop = FindOrCreateChild(parent, objectName);
+        stop.transform.position = position;
+        stop.transform.localScale = Vector3.one;
+
+        BoxCollider2D collider = GetOrAddComponent<BoxCollider2D>(stop);
+        collider.size = size;
+        collider.offset = Vector2.zero;
+        collider.isTrigger = false;
+    }
+
     private static Transform EnsureGroundCheck(Transform parent)
     {
         Transform groundCheck = parent.Find("GroundCheck");
@@ -709,6 +762,59 @@ public static class StarterSceneBuilder
         serializedObject.FindProperty("warningDuration").floatValue = warningDuration;
         serializedObject.FindProperty("dangerDuration").floatValue = dangerDuration;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigurePatrollingEnemy(
+        PatrollingEnemy2D patrollingEnemy,
+        LayerMask blockerLayers,
+        float moveSpeed,
+        bool startFacingRight)
+    {
+        if (patrollingEnemy == null)
+        {
+            return;
+        }
+
+        SerializedObject serializedObject = new SerializedObject(patrollingEnemy);
+        serializedObject.FindProperty("blockerLayers").intValue = blockerLayers;
+        serializedObject.FindProperty("moveSpeed").floatValue = moveSpeed;
+        serializedObject.FindProperty("startFacingRight").boolValue = startFacingRight;
+        serializedObject.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigurePatrollingEnemyVisuals(GameObject enemy)
+    {
+        if (enemy == null)
+        {
+            return;
+        }
+
+        SpriteRenderer[] renderers = enemy.GetComponentsInChildren<SpriteRenderer>();
+        for (int index = 0; index < renderers.Length; index++)
+        {
+            SpriteRenderer renderer = renderers[index];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            string rendererName = renderer.gameObject.name;
+            if (rendererName.Contains("Eye"))
+            {
+                renderer.color = new Color(1f, 0.98f, 0.76f, 1f);
+                renderer.sortingOrder = 8;
+            }
+            else if (rendererName.Contains("Spike"))
+            {
+                renderer.color = new Color(1f, 0.8f, 0.24f, 1f);
+                renderer.sortingOrder = 7;
+            }
+            else
+            {
+                renderer.color = new Color(0.93f, 0.24f, 0.18f, 1f);
+                renderer.sortingOrder = 6;
+            }
+        }
     }
 
     private static void EnsureBuildSettings()
