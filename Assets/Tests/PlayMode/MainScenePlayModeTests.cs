@@ -26,6 +26,10 @@ namespace VibeCode.Tests.PlayMode
                 "Expected Main scene to contain the basic slice HUD.");
             Assert.That(Object.FindAnyObjectByType<Checkpoint2D>(), Is.Not.Null,
                 "Expected Main scene to contain a midpoint checkpoint.");
+            Assert.That(Object.FindAnyObjectByType<FloorButton2D>(), Is.Not.Null,
+                "Expected Main scene to contain a floor button puzzle trigger.");
+            Assert.That(Object.FindAnyObjectByType<LinkedGate2D>(), Is.Not.Null,
+                "Expected Main scene to contain a linked gate for the button puzzle.");
             Assert.That(GameObject.Find("Garden Backdrop"), Is.Not.Null,
                 "Expected Main scene to use a continuous world backdrop behind the slice.");
             Assert.That(Object.FindAnyObjectByType<ExitPortal>(), Is.Not.Null,
@@ -351,6 +355,39 @@ namespace VibeCode.Tests.PlayMode
             Assert.That(gameManager.CanUseExit, Is.True, "Expected enough seeds to unlock the exit.");
             Assert.That(gameManager.TryReachExit(), Is.True, "Expected the exit to succeed once the seed requirement is met.");
             Assert.That(gameManager.HasWon, Is.True, "Expected the slice to mark itself as won.");
+        }
+
+        [UnityTest]
+        public IEnumerator GateStartsClosedAndOpensAfterButtonActivation()
+        {
+            yield return SceneManager.LoadSceneAsync("Main", LoadSceneMode.Single);
+            yield return null;
+
+            FloorButton2D floorButton = Object.FindAnyObjectByType<FloorButton2D>();
+            LinkedGate2D linkedGate = Object.FindAnyObjectByType<LinkedGate2D>();
+            Collider2D gateCollider = linkedGate != null ? linkedGate.GetComponent<Collider2D>() : null;
+
+            Assert.That(floorButton, Is.Not.Null);
+            Assert.That(linkedGate, Is.Not.Null);
+            Assert.That(gateCollider, Is.Not.Null);
+            Assert.That(floorButton.LinkedGate, Is.SameAs(linkedGate),
+                "Expected the scene button to be wired to the scene gate.");
+            Assert.That(floorButton.IsActivated, Is.False,
+                "Expected the floor button to start unpressed.");
+            Assert.That(linkedGate.IsOpen, Is.False,
+                "Expected the linked gate to start closed.");
+            Assert.That(gateCollider.enabled, Is.True,
+                "Expected the closed gate to still block player movement.");
+
+            floorButton.Activate();
+            yield return null;
+
+            Assert.That(floorButton.IsActivated, Is.True,
+                "Expected manual activation to latch the button.");
+            Assert.That(linkedGate.IsOpen, Is.True,
+                "Expected the linked gate to open when its button activates.");
+            Assert.That(gateCollider.enabled, Is.False,
+                "Expected the opened gate to stop blocking player movement.");
         }
     }
 }

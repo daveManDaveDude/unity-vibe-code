@@ -8,8 +8,11 @@ namespace VibeCode.Platformer
     {
         [SerializeField] private Collider2D blockingCollider;
         [SerializeField] private SpriteRenderer spriteRenderer;
+        [SerializeField] private SpriteRenderer statusIndicatorRenderer;
         [SerializeField] private Color lockedColor = new Color(0.74f, 0.28f, 0.24f, 1f);
-        [SerializeField] private Color openColor = new Color(0.45f, 0.9f, 0.61f, 0.4f);
+        [SerializeField] private Color openColor = new Color(0.45f, 0.9f, 0.61f, 0.12f);
+        [SerializeField] private Color lockedIndicatorColor = new Color(0.97f, 0.36f, 0.26f, 1f);
+        [SerializeField] private Color openIndicatorColor = new Color(0.45f, 0.9f, 0.61f, 1f);
 
         public bool IsOpen { get; private set; }
 
@@ -71,6 +74,11 @@ namespace VibeCode.Platformer
             if (spriteRenderer != null)
             {
                 spriteRenderer.color = IsOpen ? openColor : lockedColor;
+            }
+
+            if (statusIndicatorRenderer != null)
+            {
+                statusIndicatorRenderer.color = IsOpen ? openIndicatorColor : lockedIndicatorColor;
             }
         }
     }

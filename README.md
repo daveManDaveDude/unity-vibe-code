@@ -28,7 +28,7 @@ After Unity finishes importing scripts:
 3. In the Unity menu bar, click `Vibe` -> `Build Platformer Starter Scene`.
 4. Press Play.
 
-The scene builder will refresh the current Gravity Garden playable slice with placeholder art, player movement, seeds, a HUD, a moving platform, a timed thorn bridge, an exit portal, and a fall-respawn zone.
+The scene builder will refresh the current Gravity Garden playable slice with placeholder art, player movement, seeds, a HUD, a checkpoint critter enemy, a button-and-gate puzzle, a moving platform, a timed thorn bridge, an exit portal, and a fall-respawn zone.
 
 ## Default controls
 
@@ -42,7 +42,9 @@ This first slice is a short platforming run built around a simple collect-surviv
 - start on the glowing garden patch at the left side of the level
 - collect enough `energy seeds` to power the exit portal
 - use the moving platform to cross the first garden gap
+- reach the midpoint checkpoint, and either avoid or stomp the patrolling checkpoint critter guarding that stretch
 - wait for the thorn bridge to shift into its safe timing, then cross before it snaps back to danger
+- press the floor button near the portal to open the gate blocking the final approach
 - avoid falling into the kill zone below the level or touching the active hazard, or you will respawn at the start
 - once the HUD says the portal is ready, reach the exit on the right to win the slice
 
@@ -51,6 +53,8 @@ This first slice is a short platforming run built around a simple collect-surviv
 - Hold jump for a full hop, then tap jump for a shorter hop. The difference should feel easy to control.
 - Run, let go, and reverse direction. The player should speed up smoothly but stop and turn without feeling slippery.
 - Watch the placeholder body states: idle on the ground, bouncy run while moving, and jump visuals while airborne.
+- Brush the checkpoint critter from the side and confirm it sends you back to the active respawn point.
+- Reach the floor button near the end and confirm the linked gate opens and stays open.
 - Ride the moving platform for a full pass and make sure the player stays carried cleanly without sliding off.
 - Watch the thorn bridge light cycle between safe, warning, and danger. The safe and danger windows should read clearly before you commit.
 - Fall into the kill zone or touch the thorn bridge during its danger state. You should respawn back at the starting patch.
@@ -67,12 +71,12 @@ Do not commit Unity's generated folders such as `Library`, `Temp`, `Obj`, `Build
 
 ## Good next steps
 
-Once you have the starter scene running, I can help you:
+Once you have the full slice running, good next steps are:
 
 - turn the placeholder blocks into proper sprites or tilemaps
-- add collectibles, enemies, and hazards
+- add a second level that reuses checkpoints, patrolling enemies, gates, and moving hazards
 - split code into player, world, and game systems
-- add simple tests and a cleaner CI-friendly repo workflow
+- add audio, juice, and clearer win/fail feedback around the existing encounters
 
 ## Automation
 
@@ -154,4 +158,4 @@ The repo also includes starter Unity Test Framework coverage:
 - [PlatformerEditModeTests.cs](/Users/david/vibe-with-ben/unity-vibe-code/Assets/Tests/EditMode/PlatformerEditModeTests.cs)
 - [MainScenePlayModeTests.cs](/Users/david/vibe-with-ben/unity-vibe-code/Assets/Tests/PlayMode/MainScenePlayModeTests.cs)
 
-These are intentionally simple smoke checks so we have a working pipeline first, then we can grow them into movement, collision, and gameplay regression tests.
+These now cover the full Gravity Garden slice, including respawn flow, the moving platform, the timed thorn bridge, the checkpoint critter encounter, and the button-gate puzzle.
